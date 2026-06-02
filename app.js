@@ -278,7 +278,7 @@ async function onSubmit(e) {
 }
 
 async function handleUserTurn(text, options = {}) {
-  appendUser(text);
+  appendUser(options.displayText || text);
   STATE.call.turnInFlight = Boolean(STATE.call.active && options.source?.includes('voice'));
   setAvatar('🤔');
   setTutorMood('thinking');
@@ -287,7 +287,7 @@ async function handleUserTurn(text, options = {}) {
     updateAnnaSubtitle(isUltraFastModeEnabled() ? 'Right — one sec.' : 'Right — give me a second.');
   }
   try {
-    const reply = await generateTutorReply(text);
+    const reply = await generateTutorReply(text, options);
     appendAssistant(reply.text);
     updateAnnaSubtitle(reply.subtitle || reply.text);
     if (reply.feedback && hasVisibleFeedback(reply.feedback)) {
@@ -326,13 +326,8 @@ function runHelperPrompt(kind) {
     return;
   }
 
-  const payloadMap = {
-    translate: `다음 한국어를 외국인이 실제로 말할 자연스러운 영어로 바꿔줘: ${text}`,
-    correct: `다음 영어 문장을 짧게 고쳐주고 더 자연스럽게 바꿔줘: ${text}`,
-  };
-
   messageInput.value = '';
-  handleUserTurn(payloadMap[kind], { autoSpeak: false, source: kind });
+  handleUserTurn(text, { autoSpeak: false, source: kind, helperKind: kind });
 }
 
 async function startVideoConversation() {
@@ -392,17 +387,28 @@ function hasVisibleFeedback(feedback) {
   return Boolean(feedback.answer || feedback.correction || feedback.explanation || (feedback.vocabulary || []).length);
 }
 
-async function generateTutorReply(userText) {
+async function generateTutorReply(userText, options = {}) {
   if (STATE.settings.apiKey) {
-    return realAiReply(userText);
+    return realAiReply(userText, options);
   }
   if (getProxyBaseUrl()) {
-    return proxyAiReply(userText);
+    return proxyAiReply(userText, options);
   }
-  return demoReply(userText);
+  return demoReply(userText, options);
 }
 
-async function realAiReply(userText) {
+function buildHelperPrompt(kind, text) {
+  if (kind === 'translate') {
+    return `다음 한국어를 외국인이 실제로 말할 자연스러운 영어로 바꿔줘: ${text}`;
+  }
+  if (kind === 'correct') {
+    return `다음 영어 문장을 짧게 고쳐주고 더 자연스럽게 바꿔줘: ${text}`;
+  }
+  return text;
+}
+
+async function realAiReply(userText, options = {}) {
+  const effectiveUserText = options.helperKind ? buildHelperPrompt(options.helperKind, userText) : userText;
   const isVoiceCall = STATE.call.active;
   const model = pickReplyModel({ isVoiceCall });
   const recentMessages = getRecentMessagesForReply({ isVoiceCall });
@@ -436,7 +442,7 @@ async function realAiReply(userText) {
   const messages = [
     { role: 'system', content: `${system} ${replyStyleHints}`.trim() },
     ...recentMessages,
-    { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${userText}` : userText }
+    { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${effectiveUserText}` : effectiveUserText }
   ];
 
   const res = await fetch(`${STATE.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
@@ -475,11 +481,12 @@ async function realAiReply(userText) {
   };
 }
 
-async function proxyAiReply(userText) {
+async function proxyAiReply(userText, options = {}) {
+  const effectiveUserText = options.helperKind ? buildHelperPrompt(options.helperKind, userText) : userText;
   const isVoiceCall = STATE.call.active;
   const endpoint = `${getProxyBaseUrl()}/chat`;
   const payload = {
-    userText,
+    userText: effectiveUserText,
     theme: themeSelect.value,
     difficulty: difficultySelect.value,
     isVoiceCall,
@@ -516,10 +523,51 @@ async function proxyAiReply(userText) {
   };
 }
 
-async function demoReply(userText) {
+async function demoReply(userText, options = {}) {
   const theme = themeSelect.value;
-  const isKorean = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(userText);
   const normalized = userText.trim();
+
+  if (options.helperKind === 'translate') {
+    const answer = makeMoreNatural(translateKoreanHeuristically(normalized, theme), theme);
+    return {
+      text: answer,
+      subtitle: answer,
+      speakText: answer,
+      feedback: {
+        answer,
+        correction: '',
+        explanation: '이 문장 그대로 말하면 자연스러워.',
+        vocabulary: vocabForTheme(theme).slice(0, 3),
+      }
+    };
+  }
+
+  if (options.helperKind === 'correct') {
+    const corrected = correctEnglishHeuristically(normalized);
+    const natural = makeMoreNatural(corrected, theme);
+    const needsCorrection = corrected !== normalized || natural !== corrected;
+
+    return needsCorrection
+      ? {
+          text: `You could say, "${natural}"`,
+          subtitle: natural,
+          speakText: natural,
+          feedback: {
+            answer: natural,
+            correction: corrected,
+            explanation: '이렇게 바꾸면 더 자연스럽고 매끄러워.',
+            vocabulary: vocabForTheme(theme).slice(0, 3),
+          }
+        }
+      : {
+          text: 'That already sounds natural.',
+          subtitle: 'That already sounds natural.',
+          speakText: 'That already sounds natural.',
+          feedback: null,
+        };
+  }
+
+  const isKorean = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(userText);
   const lower = normalized.toLowerCase();
 
   if (/^(i don't know|i dont know|모르겠|잘 모르겠)/i.test(lower) || /모르겠/.test(normalized)) {
