@@ -18,9 +18,16 @@ body {
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: radial-gradient(circle at top, #163159 0%, var(--bg) 48%);
   color: var(--text);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 button, input, textarea, select { font: inherit; }
-button { cursor: pointer; }
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -402,6 +409,7 @@ textarea { resize: vertical; min-height: 78px; }
   border: 0;
   border-radius: 12px;
   padding: 12px 14px;
+  min-height: 46px;
 }
 .primary-btn {
   background: linear-gradient(135deg, #55b8ff, #3d7fff);
@@ -729,4 +737,69 @@ textarea { resize: vertical; min-height: 78px; }
   .hero-actions { width: 100%; min-width: 0; }
   .video-call-header { flex-direction: column; }
   .call-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .sidebar, .main-panel {
+    padding: 14px;
+  }
+  .brand-card, .panel, .hero-card, .composer, .feedback-panel, .video-call-panel, .chat-window {
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .hero-actions {
+    grid-template-columns: 1fr;
+  }
+  .hero-actions > :last-child {
+    grid-column: auto;
+  }
+  .quick-actions, .composer-actions, .call-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .settings-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .quick-actions > *, .composer-actions > *, .call-controls > *, .settings-actions > * {
+    width: 100%;
+  }
+  .call-screen {
+    min-height: 240px;
+  }
+  .anna-screen .anna-photo-shell {
+    width: min(250px, 82%);
+    top: 18px;
+    bottom: 70px;
+  }
+  .stage-presence {
+    max-width: 74%;
+    bottom: 72px;
+  }
+  .stage-badge-row {
+    gap: 8px;
+  }
+  .stage-badge, .mode-badge {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+  .call-subtitle {
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    font-size: 12px;
+  }
+  .chat-window {
+    min-height: 320px;
+  }
+  .composer {
+    position: sticky;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 5;
+    background: rgba(16, 27, 45, 0.96);
+    backdrop-filter: blur(14px);
+  }
+  #messageInput {
+    min-height: 92px;
+    font-size: 16px;
+  }
 }

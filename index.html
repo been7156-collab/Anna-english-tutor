@@ -2,9 +2,21 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ANNA 영어쌤</title>
-    <link rel="stylesheet" href="./styles.css?v=20260602e" />
+    <meta name="theme-color" content="#09111f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ANNA 영어쌤" />
+    <meta name="description" content="실사형 영국식 AI 영어 튜터 ANNA와 카메라·음성 회화 연습을 바로 시작해보세요." />
+    <meta property="og:title" content="ANNA 영어쌤" />
+    <meta property="og:description" content="실사형 영국식 AI 영어 튜터와 자연스럽게 회화 연습하는 웹앱" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./assets/anna-icon-512.png" />
+    <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
+    <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css?v=20260602f" />
   </head>
   <body>
     <div class="app-shell">
@@ -74,7 +86,7 @@
               <p class="muted small">데모 모드, 개인 API 키 직접 사용, 또는 공개 프록시 서버 연결 중 하나로 사용할 수 있어요.</p>
               <label>
                 공개 AI 서버 URL
-                <input id="proxyUrlInput" type="text" placeholder="https://anna-english-tutor.vercel.app/api (선택)" />
+                <input id="proxyUrlInput" type="text" placeholder="https://your-app.vercel.app/api (선택)" />
               </label>
               <label>
                 OpenAI 호환 API 키
@@ -222,6 +234,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260602e"></script>
+    <script src="./app.js?v=20260602f"></script>
   </body>
 </html>

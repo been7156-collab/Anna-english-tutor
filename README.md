@@ -2,6 +2,10 @@
 
 로컬에서 실행하거나, 공개 배포해서 바로 쓸 수 있는 영어 회화 AI 튜터 웹앱 MVP입니다.
 
+## 공개 링크
+- GitHub Pages: https://been7156-collab.github.io/Anna-english-tutor/
+- QR 코드 파일: `assets/anna-public-qr.png`
+
 ## 기능
 - 상황별 회화 테마 선택
 - 한국어 질문 → 영어 추천 문장
@@ -51,16 +55,17 @@ python3 -m http.server 8765
 
 ### Vercel 배포 절차
 1. GitHub 저장소를 Vercel에 Import
-2. Environment Variables 설정
+2. Vercel CLI를 쓸 경우 `vercel login` 또는 `--token` 필요
+3. Environment Variables 설정
    - `OPENAI_API_KEY`
    - `OPENAI_BASE_URL` (선택, 기본값 `https://api.openai.com/v1`)
    - `OPENAI_MODEL` (선택, 기본값 `gpt-4.1-mini`)
    - `OPENAI_TTS_MODEL` (선택, 기본값 `gpt-4o-mini-tts`)
    - `OPENAI_TTS_VOICE` (선택, 기본값 `shimmer`)
-3. Deploy
-4. 배포 후 주소 예시:
-   - 앱: `https://anna-english-tutor.vercel.app`
-   - 프록시 API: `https://anna-english-tutor.vercel.app/api`
+4. Deploy
+5. 배포 후 주소 예시:
+   - 앱: `https://your-app.vercel.app`
+   - 프록시 API: `https://your-app.vercel.app/api`
 
 ### 같은 도메인으로 쓸 때
 앱 자체를 Vercel로 배포하면 프론트엔드가 자동으로 같은 도메인의 `/api`를 우선 시도합니다.
