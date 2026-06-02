@@ -58,7 +58,11 @@
 
         <section class="panel settings-panel">
           <h2>AI 설정</h2>
-          <p class="muted small">API 키 없이도 데모 모드로 체험 가능. 실사용 시 OpenAI 호환 키를 넣으면 실제 AI 응답 사용.</p>
+          <p class="muted small">데모 모드, 개인 API 키 직접 사용, 또는 공개 프록시 서버 연결 중 하나로 사용할 수 있어요.</p>
+          <label>
+            공개 AI 서버 URL
+            <input id="proxyUrlInput" type="text" placeholder="https://anna-english-tutor.vercel.app/api (선택)" />
+          </label>
           <label>
             OpenAI 호환 API 키
             <input id="apiKeyInput" type="password" placeholder="sk-... (선택)" />

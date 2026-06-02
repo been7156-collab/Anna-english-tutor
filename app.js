@@ -9,6 +9,7 @@ const avatarStatusText = document.getElementById('avatarStatusText');
 const themeSelect = document.getElementById('themeSelect');
 const difficultySelect = document.getElementById('difficultySelect');
 const modeBadge = document.getElementById('modeBadge');
+const proxyUrlInput = document.getElementById('proxyUrlInput');
 const apiKeyInput = document.getElementById('apiKeyInput');
 const baseUrlInput = document.getElementById('baseUrlInput');
 const modelInput = document.getElementById('modelInput');
@@ -224,6 +225,9 @@ async function generateTutorReply(userText) {
   if (STATE.settings.apiKey) {
     return realAiReply(userText);
   }
+  if (getProxyBaseUrl()) {
+    return proxyAiReply(userText);
+  }
   return demoReply(userText);
 }
 
@@ -280,6 +284,45 @@ async function realAiReply(userText) {
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content || '{}';
   const parsed = safeJsonParse(content);
+  return {
+    text: parsed.reply || 'Sure. Tell me a little more.',
+    subtitle: parsed.subtitle || parsed.reply || '',
+    speakText: parsed.speakText || parsed.answer || parsed.reply || '',
+    feedback: {
+      answer: parsed.answer || '',
+      correction: parsed.correction || '',
+      explanation: parsed.explanation || '',
+      vocabulary: Array.isArray(parsed.vocabulary) ? parsed.vocabulary.slice(0, 4) : [],
+    }
+  };
+}
+
+async function proxyAiReply(userText) {
+  const isVoiceCall = STATE.call.active;
+  const endpoint = `${getProxyBaseUrl()}/chat`;
+  const payload = {
+    userText,
+    theme: themeSelect.value,
+    difficulty: difficultySelect.value,
+    isVoiceCall,
+    recentMessages: STATE.messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+    model: STATE.settings.model || 'gpt-4.1-mini'
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`공개 AI 요청 실패 (${res.status}): ${text.slice(0, 180)}`);
+  }
+
+  const parsed = await res.json();
   return {
     text: parsed.reply || 'Sure. Tell me a little more.',
     subtitle: parsed.subtitle || parsed.reply || '',
@@ -352,13 +395,94 @@ async function demoReply(userText) {
 
 function conversationalFollowUp(natural, theme) {
   const lower = natural.toLowerCase();
-  if (theme === 'daily') return 'Mm-hmm, nice. What did you do after that?';
-  if (theme === 'cafe') return lower.includes('americano') ? 'Nice choice. Anything else for you?' : 'Okay, got it. What would you like next?';
-  if (theme === 'travel') return 'Got it. When is your flight?';
-  if (theme === 'church') return 'That sounds lovely. What is your church known for?';
-  if (theme === 'worship') return 'Nice. What songs are you doing today?';
-  if (theme === 'pastoral') return 'I see. What part of ministry do you enjoy most?';
-  return 'Mm-hmm. Tell me a little more.';
+
+  if (theme === 'daily') {
+    if (/(went to church|church)/i.test(lower)) {
+      return pickVariant(natural, [
+        'That sounds nice. What did you do at church?',
+        'Oh, nice. Was it for worship or a meeting?',
+        'I see. Who did you go with?'
+      ]);
+    }
+    if (/(met|friend)/i.test(lower)) {
+      return pickVariant(natural, [
+        'Nice. What did you and your friend do?',
+        'Oh, that sounds good. Where did you meet?',
+        'I see. Was it fun?'
+      ]);
+    }
+    if (/(busy|tired)/i.test(lower)) {
+      return pickVariant(natural, [
+        'Sounds like a long day. What made it busy?',
+        'I got you. Are you resting now?',
+        'Oh, really? What kept you busy?'
+      ]);
+    }
+    return pickVariant(natural, [
+      'Mm-hmm, nice. What did you do after that?',
+      'Oh, I see. Tell me a little more.',
+      'That sounds good. What happened next?'
+    ]);
+  }
+
+  if (theme === 'cafe') {
+    if (lower.includes('americano')) {
+      return pickVariant(natural, [
+        'Nice choice. Anything else for you?',
+        'Sure. Would you like that hot or iced?',
+        'Great. Do you want anything to eat too?'
+      ]);
+    }
+    return pickVariant(natural, [
+      'Okay, got it. What would you like next?',
+      'Sure. Is that for here or to go?',
+      'Of course. Anything else today?'
+    ]);
+  }
+
+  if (theme === 'travel') {
+    return pickVariant(natural, [
+      'Got it. When is your flight?',
+      'Okay. Which city are you flying to?',
+      'I see. Do you already have your boarding pass?'
+    ]);
+  }
+
+  if (theme === 'church') {
+    return pickVariant(natural, [
+      'That sounds lovely. What is your church known for?',
+      'I see. What kind of community does your church have?',
+      'Nice. What do people usually experience when they visit?'
+    ]);
+  }
+
+  if (theme === 'worship') {
+    return pickVariant(natural, [
+      'Nice. What songs are you doing today?',
+      'That sounds good. Who is leading worship today?',
+      'I see. Did you rehearse already?'
+    ]);
+  }
+
+  if (theme === 'pastoral') {
+    return pickVariant(natural, [
+      'I see. What part of ministry do you enjoy most?',
+      'That is meaningful. Who are you serving most these days?',
+      'Got it. What has been on your heart lately in ministry?'
+    ]);
+  }
+
+  return pickVariant(natural, [
+    'Mm-hmm. Tell me a little more.',
+    'I see. What happened next?',
+    'That sounds interesting. Go on.'
+  ]);
+}
+
+function pickVariant(seedText, options) {
+  const seed = String(seedText || '');
+  const hash = [...seed].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return options[hash % options.length];
 }
 
 function translateKoreanHeuristically(text, theme) {
@@ -445,6 +569,7 @@ function themeLabel(theme) {
 
 function saveSettingsFromUI() {
   STATE.settings = {
+    proxyUrl: normalizeProxyUrl(proxyUrlInput.value),
     apiKey: apiKeyInput.value.trim(),
     baseUrl: baseUrlInput.value.trim() || 'https://api.openai.com/v1',
     model: modelInput.value.trim() || 'gpt-4.1-mini',
@@ -454,13 +579,19 @@ function saveSettingsFromUI() {
   };
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
-  appendAssistant(STATE.settings.apiKey
-    ? 'API 설정 저장 완료. 이제 더 자연스러운 실제 AI 대화를 시도할게요.'
-    : 'API 키가 비어 있어서 데모 모드로 동작합니다.');
+  appendAssistant(
+    STATE.settings.apiKey
+      ? '개인 API 설정 저장 완료. 이제 실제 AI 대화를 시도할게요.'
+      : getProxyBaseUrl()
+        ? '공개 AI 서버 설정 저장 완료. 이제 API 키 없이 실제 AI 대화를 시도할게요.'
+        : '설정된 AI 서버가 없어서 데모 모드로 동작합니다.'
+  );
 }
 
 function enableDemoMode() {
+  STATE.settings.proxyUrl = '';
   STATE.settings.apiKey = '';
+  proxyUrlInput.value = '';
   apiKeyInput.value = '';
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
@@ -470,6 +601,7 @@ function enableDemoMode() {
 function loadSettings() {
   try {
     return JSON.parse(localStorage.getItem('englishTutorSettings')) || {
+      proxyUrl: '',
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
       model: 'gpt-4.1-mini',
@@ -479,6 +611,7 @@ function loadSettings() {
     };
   } catch {
     return {
+      proxyUrl: '',
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
       model: 'gpt-4.1-mini',
@@ -490,6 +623,7 @@ function loadSettings() {
 }
 
 function applySettingsUI() {
+  proxyUrlInput.value = STATE.settings.proxyUrl || '';
   apiKeyInput.value = STATE.settings.apiKey || '';
   baseUrlInput.value = STATE.settings.baseUrl || 'https://api.openai.com/v1';
   modelInput.value = STATE.settings.model || 'gpt-4.1-mini';
@@ -500,9 +634,30 @@ function applySettingsUI() {
 }
 
 function updateModeBadge() {
-  modeBadge.textContent = STATE.settings.apiKey
-    ? `현재: 실제 AI 대화 모드 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`
-    : '현재: 데모 모드';
+  if (STATE.settings.apiKey) {
+    modeBadge.textContent = `현재: 개인 API 직접 연결 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`;
+    return;
+  }
+  if (getProxyBaseUrl()) {
+    modeBadge.textContent = `현재: 공개 AI 서버 연결 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`;
+    return;
+  }
+  modeBadge.textContent = '현재: 데모 모드';
+}
+
+function normalizeProxyUrl(value) {
+  return String(value || '').trim().replace(/\/$/, '');
+}
+
+function getDefaultProxyBaseUrl() {
+  const host = window.location.hostname || '';
+  if (host === 'localhost' || host === '127.0.0.1') return '';
+  if (host.endsWith('github.io')) return '';
+  return `${window.location.origin}/api`;
+}
+
+function getProxyBaseUrl() {
+  return normalizeProxyUrl(STATE.settings.proxyUrl || getDefaultProxyBaseUrl());
 }
 
 function safeJsonParse(text) {
@@ -579,7 +734,7 @@ function speakLastAssistant() {
 
 async function speakText(text) {
   const speechText = extractBestSpeechText(text);
-  if (STATE.settings.ttsMode === 'openai' && STATE.settings.apiKey) {
+  if (STATE.settings.ttsMode === 'openai' && (STATE.settings.apiKey || getProxyBaseUrl())) {
     const played = await speakWithOpenAITts(speechText);
     if (played) return true;
   }
@@ -617,20 +772,32 @@ async function speakText(text) {
 
 async function speakWithOpenAITts(text) {
   try {
-    const endpoint = `${STATE.settings.baseUrl.replace(/\/$/, '')}/audio/speech`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${STATE.settings.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: STATE.settings.ttsModel || 'gpt-4o-mini-tts',
-        voice: STATE.settings.ttsVoice || 'shimmer',
-        input: text,
-        format: 'mp3'
-      })
-    });
+    const res = STATE.settings.apiKey
+      ? await fetch(`${STATE.settings.baseUrl.replace(/\/$/, '')}/audio/speech`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${STATE.settings.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: STATE.settings.ttsModel || 'gpt-4o-mini-tts',
+            voice: STATE.settings.ttsVoice || 'shimmer',
+            input: text,
+            format: 'mp3'
+          })
+        })
+      : await fetch(`${getProxyBaseUrl()}/speech`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: STATE.settings.ttsModel || 'gpt-4o-mini-tts',
+            voice: STATE.settings.ttsVoice || 'shimmer',
+            input: text,
+            format: 'mp3'
+          })
+        });
 
     if (!res.ok) {
       return false;
