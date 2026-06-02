@@ -18,8 +18,10 @@ const ttsModelInput = document.getElementById('ttsModelInput');
 const ttsVoiceInput = document.getElementById('ttsVoiceInput');
 const ultraFastModeToggle = document.getElementById('ultraFastModeToggle');
 const oneLineReplyToggle = document.getElementById('oneLineReplyToggle');
+const handsFreeModeToggle = document.getElementById('handsFreeModeToggle');
 const ultraFastMirrorToggle = document.getElementById('ultraFastMirrorToggle');
 const oneLineMirrorToggle = document.getElementById('oneLineMirrorToggle');
+const handsFreeMirrorToggle = document.getElementById('handsFreeMirrorToggle');
 const callStatusBadge = document.getElementById('callStatusBadge');
 const annaSubtitle = document.getElementById('annaSubtitle');
 const annaStage = document.getElementById('annaStage');
@@ -27,6 +29,7 @@ const annaSpeakingBars = document.getElementById('annaSpeakingBars');
 const stageVoiceBadge = document.getElementById('stageVoiceBadge');
 const callSpeedBadge = document.getElementById('callSpeedBadge');
 const callReplyBadge = document.getElementById('callReplyBadge');
+const callHandsFreeBadge = document.getElementById('callHandsFreeBadge');
 const stageMoodText = document.getElementById('stageMoodText');
 const browserHint = document.getElementById('browserHint');
 const settingsDetails = document.getElementById('settingsDetails');
@@ -47,6 +50,10 @@ const STATE = {
     resumeTimer: null,
     turnInFlight: false,
     heardFinal: false,
+    currentAudio: null,
+    currentAudioUrl: '',
+    currentUtterance: null,
+    assistantSpeaking: false,
   },
 };
 
@@ -94,8 +101,10 @@ function wireEvents() {
   ttsVoiceInput.addEventListener('input', refreshTutorSurface);
   ultraFastModeToggle.addEventListener('change', onConversationModeToggleChange);
   oneLineReplyToggle.addEventListener('change', onConversationModeToggleChange);
+  handsFreeModeToggle.addEventListener('change', onConversationModeToggleChange);
   ultraFastMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
   oneLineMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
+  handsFreeMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
   closeFeedbackBtn.addEventListener('click', () => feedbackPanel.classList.add('hidden'));
   document.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => onQuickAction(btn.dataset.quick));
@@ -117,16 +126,23 @@ function isOneLineReplyModeEnabled() {
   return Boolean(STATE.settings.oneLineReplyMode);
 }
 
+function isHandsFreeModeEnabled() {
+  return Boolean(STATE.settings.handsFreeMode);
+}
+
 function syncConversationModeControls() {
   if (ultraFastModeToggle) ultraFastModeToggle.checked = isUltraFastModeEnabled();
   if (oneLineReplyToggle) oneLineReplyToggle.checked = isOneLineReplyModeEnabled();
+  if (handsFreeModeToggle) handsFreeModeToggle.checked = isHandsFreeModeEnabled();
   if (ultraFastMirrorToggle) ultraFastMirrorToggle.checked = isUltraFastModeEnabled();
   if (oneLineMirrorToggle) oneLineMirrorToggle.checked = isOneLineReplyModeEnabled();
+  if (handsFreeMirrorToggle) handsFreeMirrorToggle.checked = isHandsFreeModeEnabled();
 }
 
 function onConversationModeToggleChange() {
   STATE.settings.ultraFastMode = Boolean(ultraFastModeToggle?.checked);
   STATE.settings.oneLineReplyMode = Boolean(oneLineReplyToggle?.checked);
+  STATE.settings.handsFreeMode = Boolean(handsFreeModeToggle?.checked);
   syncConversationModeControls();
   persistSettings();
   updateModeBadge();
@@ -134,9 +150,15 @@ function onConversationModeToggleChange() {
 }
 
 function syncMirrorToggleToMain(event) {
-  const isUltra = event.currentTarget === ultraFastMirrorToggle;
-  if (isUltra && ultraFastModeToggle) ultraFastModeToggle.checked = ultraFastMirrorToggle.checked;
-  if (!isUltra && oneLineReplyToggle) oneLineReplyToggle.checked = oneLineMirrorToggle.checked;
+  if (event.currentTarget === ultraFastMirrorToggle && ultraFastModeToggle) {
+    ultraFastModeToggle.checked = ultraFastMirrorToggle.checked;
+  }
+  if (event.currentTarget === oneLineMirrorToggle && oneLineReplyToggle) {
+    oneLineReplyToggle.checked = oneLineMirrorToggle.checked;
+  }
+  if (event.currentTarget === handsFreeMirrorToggle && handsFreeModeToggle) {
+    handsFreeModeToggle.checked = handsFreeMirrorToggle.checked;
+  }
   onConversationModeToggleChange();
 }
 
@@ -173,10 +195,39 @@ function getCallResumeDelay() {
   return 120;
 }
 
+function clearOpenAiAudioPlayback() {
+  if (STATE.call.currentAudio) {
+    try {
+      STATE.call.currentAudio.pause();
+      STATE.call.currentAudio.currentTime = 0;
+    } catch {}
+  }
+  if (STATE.call.currentAudioUrl) {
+    try { URL.revokeObjectURL(STATE.call.currentAudioUrl); } catch {}
+  }
+  STATE.call.currentAudio = null;
+  STATE.call.currentAudioUrl = '';
+}
+
+function stopCurrentSpeechPlayback({ resumeListening = false } = {}) {
+  try { speechSynthesis?.cancel?.(); } catch {}
+  clearOpenAiAudioPlayback();
+  STATE.call.currentUtterance = null;
+  STATE.call.assistantSpeaking = false;
+  if (STATE.call.active) {
+    setTutorMood('idle');
+    updateCallStatus('화상 회화 중');
+  }
+  if (resumeListening && STATE.call.active) {
+    queueCallListeningResume();
+  }
+}
+
 function refreshTutorSurface() {
   if (stageVoiceBadge) stageVoiceBadge.textContent = getVoiceBadgeLabel();
   if (callSpeedBadge) callSpeedBadge.textContent = isUltraFastModeEnabled() ? 'Ultra-fast ON' : 'Ultra-fast OFF';
   if (callReplyBadge) callReplyBadge.textContent = isOneLineReplyModeEnabled() ? '1-line ON' : '1-line OFF';
+  if (callHandsFreeBadge) callHandsFreeBadge.textContent = isHandsFreeModeEnabled() ? 'Hands-free ON' : 'Hands-free OFF';
   syncConversationModeControls();
   if (!stageMoodText || STATE.call.active) return;
   stageMoodText.textContent = isUltraFastModeEnabled()
@@ -285,6 +336,9 @@ function runHelperPrompt(kind) {
 }
 
 async function startVideoConversation() {
+  if (STATE.call.assistantSpeaking) {
+    stopCurrentSpeechPlayback();
+  }
   if (STATE.call.turnInFlight) return;
 
   if (!STATE.call.active) {
@@ -725,6 +779,7 @@ function saveSettingsFromUI() {
     ttsVoice: ttsVoiceInput.value.trim() || 'nova',
     ultraFastMode: Boolean(ultraFastModeToggle?.checked),
     oneLineReplyMode: Boolean(oneLineReplyToggle?.checked),
+    handsFreeMode: Boolean(handsFreeModeToggle?.checked),
   };
   persistSettings();
   updateModeBadge();
@@ -761,6 +816,7 @@ function loadSettings() {
     ttsVoice: 'nova',
     ultraFastMode: true,
     oneLineReplyMode: true,
+    handsFreeMode: true,
   };
 
   try {
@@ -784,7 +840,7 @@ function applySettingsUI() {
 }
 
 function updateModeBadge() {
-  const callModeLabel = `${isUltraFastModeEnabled() ? '초고속' : '기본속도'} · ${isOneLineReplyModeEnabled() ? '1문장' : '자유응답'}`;
+  const callModeLabel = `${isUltraFastModeEnabled() ? '초고속' : '기본속도'} · ${isOneLineReplyModeEnabled() ? '1문장' : '자유응답'} · ${isHandsFreeModeEnabled() ? '핸즈프리' : '수동청취'}`;
   if (STATE.settings.apiKey) {
     modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}`;
     return;
@@ -893,6 +949,8 @@ async function speakText(text) {
   const preferLowLatencyBrowserTts = STATE.call.active;
   const canUseOpenAiTts = STATE.settings.ttsMode === 'openai' && (STATE.settings.apiKey || getProxyBaseUrl());
 
+  stopCurrentSpeechPlayback();
+
   if (!preferLowLatencyBrowserTts && canUseOpenAiTts) {
     const played = await speakWithOpenAITts(speechText);
     if (played) return true;
@@ -909,21 +967,27 @@ async function speakText(text) {
 
   const lang = detectSpeechLang(speechText);
   const utterance = new SpeechSynthesisUtterance(speechText);
+  STATE.call.currentUtterance = utterance;
   utterance.lang = lang;
   utterance.voice = pickBestVoice(lang);
   utterance.rate = lang.startsWith('en') ? 0.95 : 1;
   utterance.pitch = lang.startsWith('en') ? 1.04 : 1;
   return new Promise((resolve) => {
     utterance.onstart = () => {
+      STATE.call.assistantSpeaking = true;
       setTutorMood('speaking');
       if (STATE.call.active) updateCallStatus('ANNA 답변 중');
     };
     utterance.onend = () => {
+      STATE.call.currentUtterance = null;
+      STATE.call.assistantSpeaking = false;
       setTutorMood('idle');
       if (STATE.call.active) updateCallStatus('화상 회화 중');
       resolve(true);
     };
     utterance.onerror = () => {
+      STATE.call.currentUtterance = null;
+      STATE.call.assistantSpeaking = false;
       setTutorMood('idle');
       if (STATE.call.active) updateCallStatus('화상 회화 중');
       resolve(false);
@@ -969,27 +1033,33 @@ async function speakWithOpenAITts(text) {
     const blob = await res.blob();
     const audioUrl = URL.createObjectURL(blob);
     const audio = new Audio(audioUrl);
+    STATE.call.currentAudio = audio;
+    STATE.call.currentAudioUrl = audioUrl;
     await new Promise((resolve) => {
       audio.onplay = () => {
+        STATE.call.assistantSpeaking = true;
         setTutorMood('speaking');
         if (STATE.call.active) updateCallStatus('ANNA 답변 중');
       };
       audio.onended = () => {
+        STATE.call.assistantSpeaking = false;
+        clearOpenAiAudioPlayback();
         setTutorMood('idle');
         if (STATE.call.active) updateCallStatus('화상 회화 중');
-        URL.revokeObjectURL(audioUrl);
         resolve(true);
       };
       audio.onerror = () => {
+        STATE.call.assistantSpeaking = false;
+        clearOpenAiAudioPlayback();
         setTutorMood('idle');
         if (STATE.call.active) updateCallStatus('화상 회화 중');
-        URL.revokeObjectURL(audioUrl);
         resolve(false);
       };
       audio.play().catch(() => {
+        STATE.call.assistantSpeaking = false;
+        clearOpenAiAudioPlayback();
         setTutorMood('idle');
         if (STATE.call.active) updateCallStatus('화상 회화 중');
-        URL.revokeObjectURL(audioUrl);
         resolve(false);
       });
     });
@@ -1000,13 +1070,13 @@ async function speakWithOpenAITts(text) {
 }
 
 function queueCallListeningResume() {
-  if (!STATE.call.active) return;
+  if (!STATE.call.active || !isHandsFreeModeEnabled()) return;
   if (STATE.call.resumeTimer) {
     clearTimeout(STATE.call.resumeTimer);
   }
   STATE.call.resumeTimer = setTimeout(() => {
     STATE.call.resumeTimer = null;
-    if (!STATE.call.active || STATE.call.listening || STATE.call.turnInFlight) return;
+    if (!STATE.call.active || STATE.call.listening || STATE.call.turnInFlight || STATE.call.assistantSpeaking) return;
     startCallSpeechRecognition();
   }, getCallResumeDelay());
 }
@@ -1049,13 +1119,25 @@ function startSpeechRecognition() {
 
 async function startVideoLesson() {
   STATE.call.active = true;
+  STATE.call.turnInFlight = false;
+  STATE.call.heardFinal = false;
   updateCallStatus('화상 회화 중');
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
   updateAnnaSubtitle('Right — start with one short sentence.');
-  if (stageMoodText) stageMoodText.textContent = 'Camera-call mode is ready. One short sentence is enough.';
-  appendAssistant('📹 화상 회화 모드를 시작했어. 실제 통화처럼 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.');
-  speakText('Right — start with one short sentence.');
+  if (stageMoodText) {
+    stageMoodText.textContent = isHandsFreeModeEnabled()
+      ? 'Hands-free call mode is ready. Just keep talking naturally.'
+      : 'Camera-call mode is ready. One short sentence is enough.';
+  }
+  appendAssistant(
+    isHandsFreeModeEnabled()
+      ? '📹 화상 회화 모드를 시작했어. 이제 핸즈프리로 갈게. 한 번 말하면 내가 답하고 다시 자동으로 들을게. 내가 말하는 중에 바로 끼어들고 싶으면 “🎙️ 지금 말하고 답받기”를 다시 누르면 돼.'
+      : '📹 화상 회화 모드를 시작했어. 실제 통화처럼 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.'
+  );
+  if (!isHandsFreeModeEnabled()) {
+    speakText('Right — start with one short sentence.');
+  }
 }
 
 async function enableCamera() {
@@ -1087,6 +1169,10 @@ function startCallSpeechRecognition() {
   if (!SpeechRecognition) {
     appendAssistant(voiceSupportHint());
     return;
+  }
+
+  if (STATE.call.assistantSpeaking) {
+    stopCurrentSpeechPlayback();
   }
 
   if (STATE.call.listening || STATE.call.turnInFlight) return;
@@ -1174,6 +1260,7 @@ function endVideoLesson() {
     clearTimeout(STATE.call.resumeTimer);
     STATE.call.resumeTimer = null;
   }
+  stopCurrentSpeechPlayback();
   if (STATE.call.recognition) {
     try { STATE.call.recognition.stop(); } catch {}
     STATE.call.recognition = null;
@@ -1186,6 +1273,9 @@ function endVideoLesson() {
   STATE.call.listening = false;
   STATE.call.turnInFlight = false;
   STATE.call.heardFinal = false;
+  STATE.call.assistantSpeaking = false;
+  STATE.call.currentUtterance = null;
+  clearOpenAiAudioPlayback();
   userVideo.srcObject = null;
   userVideo.classList.remove('active');
   selfVideoFallback.classList.remove('hidden');

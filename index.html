@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
     <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260603a" />
+    <link rel="stylesheet" href="./styles.css?v=20260603b" />
   </head>
   <body>
     <div class="app-shell">
@@ -130,6 +130,13 @@
                   </span>
                   <input id="oneLineReplyToggle" type="checkbox" checked />
                 </label>
+                <label class="toggle-row" for="handsFreeModeToggle">
+                  <span>
+                    <strong>완전 핸즈프리 모드</strong>
+                    <small>한 번 시작하면 ANNA가 자동으로 다시 듣고 계속 이어서 대화</small>
+                  </span>
+                  <input id="handsFreeModeToggle" type="checkbox" checked />
+                </label>
               </div>
               <div class="settings-actions">
                 <button id="saveSettingsBtn">설정 저장</button>
@@ -183,6 +190,7 @@
                   <div class="stage-badge-group">
                     <span class="stage-badge" id="callSpeedBadge">Ultra-fast ON</span>
                     <span class="stage-badge" id="callReplyBadge">1-line ON</span>
+                    <span class="stage-badge" id="callHandsFreeBadge">Hands-free ON</span>
                     <span class="stage-badge" id="stageVoiceBadge">Voice · Nova</span>
                   </div>
                 </div>
@@ -232,6 +240,10 @@
               <input id="oneLineMirrorToggle" type="checkbox" checked />
               <span>1문장 답변</span>
             </label>
+            <label class="toggle-chip">
+              <input id="handsFreeMirrorToggle" type="checkbox" checked />
+              <span>핸즈프리</span>
+            </label>
           </div>
           <div id="browserHint" class="browser-hint hidden"></div>
         </section>
@@ -264,6 +276,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260603a"></script>
+    <script src="./app.js?v=20260603b"></script>
   </body>
 </html>
