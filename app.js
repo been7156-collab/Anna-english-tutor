@@ -12,6 +12,9 @@ const modeBadge = document.getElementById('modeBadge');
 const apiKeyInput = document.getElementById('apiKeyInput');
 const baseUrlInput = document.getElementById('baseUrlInput');
 const modelInput = document.getElementById('modelInput');
+const ttsModeSelect = document.getElementById('ttsModeSelect');
+const ttsModelInput = document.getElementById('ttsModelInput');
+const ttsVoiceInput = document.getElementById('ttsVoiceInput');
 const callStatusBadge = document.getElementById('callStatusBadge');
 const annaSubtitle = document.getElementById('annaSubtitle');
 const annaStage = document.getElementById('annaStage');
@@ -412,6 +415,9 @@ function saveSettingsFromUI() {
     apiKey: apiKeyInput.value.trim(),
     baseUrl: baseUrlInput.value.trim() || 'https://api.openai.com/v1',
     model: modelInput.value.trim() || 'gpt-4.1-mini',
+    ttsMode: ttsModeSelect.value || 'browser',
+    ttsModel: ttsModelInput.value.trim() || 'gpt-4o-mini-tts',
+    ttsVoice: ttsVoiceInput.value.trim() || 'nova',
   };
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
@@ -433,10 +439,20 @@ function loadSettings() {
     return JSON.parse(localStorage.getItem('englishTutorSettings')) || {
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4.1-mini'
+      model: 'gpt-4.1-mini',
+      ttsMode: 'browser',
+      ttsModel: 'gpt-4o-mini-tts',
+      ttsVoice: 'nova'
     };
   } catch {
-    return { apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' };
+    return {
+      apiKey: '',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+      ttsMode: 'browser',
+      ttsModel: 'gpt-4o-mini-tts',
+      ttsVoice: 'nova'
+    };
   }
 }
 
@@ -444,12 +460,15 @@ function applySettingsUI() {
   apiKeyInput.value = STATE.settings.apiKey || '';
   baseUrlInput.value = STATE.settings.baseUrl || 'https://api.openai.com/v1';
   modelInput.value = STATE.settings.model || 'gpt-4.1-mini';
+  ttsModeSelect.value = STATE.settings.ttsMode || 'browser';
+  ttsModelInput.value = STATE.settings.ttsModel || 'gpt-4o-mini-tts';
+  ttsVoiceInput.value = STATE.settings.ttsVoice || 'nova';
   updateModeBadge();
 }
 
 function updateModeBadge() {
   modeBadge.textContent = STATE.settings.apiKey
-    ? `현재: 실제 AI 대화 모드 (${STATE.settings.model})`
+    ? `현재: 실제 AI 대화 모드 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`
     : '현재: 데모 모드';
 }
 
@@ -525,12 +544,18 @@ function speakLastAssistant() {
   speakText(STATE.lastAssistantText);
 }
 
-function speakText(text) {
+async function speakText(text) {
+  const speechText = extractBestSpeechText(text);
+  if (STATE.settings.ttsMode === 'openai' && STATE.settings.apiKey) {
+    const played = await speakWithOpenAITts(speechText);
+    if (played) return;
+  }
+
   if (!('speechSynthesis' in window)) {
     appendAssistant('이 브라우저는 음성 읽기를 지원하지 않아요.');
     return;
   }
-  const speechText = extractBestSpeechText(text);
+
   const lang = detectSpeechLang(speechText);
   const utterance = new SpeechSynthesisUtterance(speechText);
   utterance.lang = lang;
@@ -542,6 +567,46 @@ function speakText(text) {
   utterance.onerror = () => setTutorMood('idle');
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
+}
+
+async function speakWithOpenAITts(text) {
+  try {
+    const endpoint = `${STATE.settings.baseUrl.replace(/\/$/, '')}/audio/speech`;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${STATE.settings.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: STATE.settings.ttsModel || 'gpt-4o-mini-tts',
+        voice: STATE.settings.ttsVoice || 'nova',
+        input: text,
+        format: 'mp3'
+      })
+    });
+
+    if (!res.ok) {
+      return false;
+    }
+
+    const blob = await res.blob();
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    audio.onplay = () => setTutorMood('speaking');
+    audio.onended = () => {
+      setTutorMood('idle');
+      URL.revokeObjectURL(audioUrl);
+    };
+    audio.onerror = () => {
+      setTutorMood('idle');
+      URL.revokeObjectURL(audioUrl);
+    };
+    await audio.play();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function startSpeechRecognition() {

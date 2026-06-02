@@ -71,6 +71,21 @@
             Model
             <input id="modelInput" type="text" placeholder="gpt-4.1-mini" value="gpt-4.1-mini" />
           </label>
+          <label>
+            음성 모드
+            <select id="ttsModeSelect">
+              <option value="browser">브라우저 기본 음성</option>
+              <option value="openai">고급 AI 음성 (OpenAI 호환)</option>
+            </select>
+          </label>
+          <label>
+            음성 모델
+            <input id="ttsModelInput" type="text" placeholder="gpt-4o-mini-tts" value="gpt-4o-mini-tts" />
+          </label>
+          <label>
+            음성 이름
+            <input id="ttsVoiceInput" type="text" placeholder="alloy / nova / shimmer" value="nova" />
+          </label>
           <div class="settings-actions">
             <button id="saveSettingsBtn">설정 저장</button>
             <button id="demoModeBtn">데모 모드 사용</button>
