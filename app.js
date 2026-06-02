@@ -24,6 +24,7 @@ const STATE = {
   lastAssistantText: '',
   scenarioPrompted: false,
   settings: loadSettings(),
+  voices: [],
   call: {
     active: false,
     stream: null,
@@ -51,6 +52,7 @@ const QUICK_GUIDES = {
 };
 
 applySettingsUI();
+primeVoices();
 seedWelcome();
 wireEvents();
 updateCallStatus('통화 전');
@@ -470,12 +472,52 @@ function detectSpeechLang(text) {
   return /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text) ? 'ko-KR' : 'en-US';
 }
 
+function primeVoices() {
+  if (!('speechSynthesis' in window)) return;
+  STATE.voices = window.speechSynthesis.getVoices();
+  if ('onvoiceschanged' in window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      STATE.voices = window.speechSynthesis.getVoices();
+    };
+  }
+}
+
+function extractBestSpeechText(text) {
+  const raw = stripForSpeech(text);
+  const englishChunks = raw.match(/[A-Za-z0-9][A-Za-z0-9,.'?!\-:;" ]*/g) || [];
+  const english = englishChunks
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => /[A-Za-z]{2,}/.test(chunk))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (english.length >= 6) return english;
+  return raw;
+}
+
 function stripForSpeech(text) {
   return String(text)
     .replace(/\*\*/g, '')
     .replace(/`/g, '')
     .replace(/\n+/g, ' ')
     .trim();
+}
+
+function pickBestVoice(lang) {
+  const voices = STATE.voices?.length ? STATE.voices : (window.speechSynthesis?.getVoices?.() || []);
+  const lowerLang = (lang || 'en-US').toLowerCase();
+  const preferredNames = lowerLang.startsWith('en')
+    ? ['samantha', 'ava', 'allison', 'siri', 'google us english', 'serena', 'karen', 'moira']
+    : ['yuna', 'sora', 'siri', 'google 한국의', 'google korean'];
+
+  const matching = voices.filter((voice) => (voice.lang || '').toLowerCase().startsWith(lowerLang.slice(0, 2)));
+  for (const name of preferredNames) {
+    const found = matching.find((voice) => (voice.name || '').toLowerCase().includes(name));
+    if (found) return found;
+  }
+
+  return matching[0] || voices[0] || null;
 }
 
 function speakLastAssistant() {
@@ -488,9 +530,13 @@ function speakText(text) {
     appendAssistant('이 브라우저는 음성 읽기를 지원하지 않아요.');
     return;
   }
-  const utterance = new SpeechSynthesisUtterance(stripForSpeech(text));
-  utterance.lang = detectSpeechLang(text);
-  utterance.rate = 0.98;
+  const speechText = extractBestSpeechText(text);
+  const lang = detectSpeechLang(speechText);
+  const utterance = new SpeechSynthesisUtterance(speechText);
+  utterance.lang = lang;
+  utterance.voice = pickBestVoice(lang);
+  utterance.rate = lang.startsWith('en') ? 0.94 : 0.98;
+  utterance.pitch = lang.startsWith('en') ? 1.02 : 1;
   utterance.onstart = () => setTutorMood('speaking');
   utterance.onend = () => setTutorMood('idle');
   utterance.onerror = () => setTutorMood('idle');
