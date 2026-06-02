@@ -20,6 +20,10 @@ const callStatusBadge = document.getElementById('callStatusBadge');
 const annaSubtitle = document.getElementById('annaSubtitle');
 const annaStage = document.getElementById('annaStage');
 const annaSpeakingBars = document.getElementById('annaSpeakingBars');
+const stageVoiceBadge = document.getElementById('stageVoiceBadge');
+const stageMoodText = document.getElementById('stageMoodText');
+const browserHint = document.getElementById('browserHint');
+const settingsDetails = document.getElementById('settingsDetails');
 const userVideo = document.getElementById('userVideo');
 const selfVideoFallback = document.getElementById('selfVideoFallback');
 
@@ -60,6 +64,8 @@ applySettingsUI();
 primeVoices();
 seedWelcome();
 wireEvents();
+applyEnvironmentHints();
+refreshTutorSurface();
 updateCallStatus('통화 전');
 
 function wireEvents() {
@@ -76,22 +82,48 @@ function wireEvents() {
   document.getElementById('talkToAnnaBtn').addEventListener('click', startVideoConversation);
   document.getElementById('repeatAnnaBtn').addEventListener('click', speakLastAssistant);
   document.getElementById('endVideoLessonBtn').addEventListener('click', endVideoLesson);
+  ttsModeSelect.addEventListener('change', refreshTutorSurface);
+  ttsVoiceInput.addEventListener('input', refreshTutorSurface);
   closeFeedbackBtn.addEventListener('click', () => feedbackPanel.classList.add('hidden'));
   document.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => onQuickAction(btn.dataset.quick));
   });
 }
 
+function getVoiceBadgeLabel() {
+  const voice = (STATE.settings.ttsVoice || 'nova').trim();
+  return STATE.settings.ttsMode === 'openai'
+    ? `Voice · ${voice}`
+    : 'Voice · Browser';
+}
+
+function refreshTutorSurface() {
+  if (stageVoiceBadge) stageVoiceBadge.textContent = getVoiceBadgeLabel();
+  if (!stageMoodText || STATE.call.active) return;
+  stageMoodText.textContent = 'Ready for a natural British-English chat.';
+}
+
+function applyEnvironmentHints() {
+  if (!browserHint) return;
+  if (isEmbeddedMobileBrowser()) {
+    browserHint.classList.remove('hidden');
+    browserHint.textContent = '텔레그램/인스타 앱 안 브라우저에서는 마이크 인식이 약할 수 있어요. iPhone에서는 Safari나 Chrome으로 열면 카메라·음성 인식이 더 안정적입니다.';
+    return;
+  }
+  browserHint.classList.add('hidden');
+}
+
 function seedWelcome() {
   appendAssistant(
 `안녕하세요. 저는 **ANNA**예요.
 
-영국영어로, 너무 AI 같지 않게, 짧고 자연스럽게 가볼게요.
-- 먼저 대화부터 하기
-- 필요할 때만 짧게 교정하기
-- 더 자연스러운 영국식 표현으로 다듬기
+실제 사람과 통화하듯, *짧고 자연스럽고 영국식*으로 같이 연습해볼게요.
+- 먼저 대화를 이어가기
+- 꼭 필요할 때만 짧게 교정하기
+- 더 자연스러운 영국식 표현으로 바로 바꿔주기
+- 카메라 회화 모드에서는 더 짧고 사람처럼 답하기
 
-원하면 위의 **📹 카메라+회화 시작**으로 바로 연습해봐.`
+원하면 위의 **📹 카메라+회화 시작**으로 바로 시작해봐.`
   );
 }
 
@@ -588,6 +620,8 @@ function saveSettingsFromUI() {
   };
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
+  refreshTutorSurface();
+  if (settingsDetails) settingsDetails.open = false;
   appendAssistant(
     STATE.settings.apiKey
       ? '개인 API 설정 저장 완료. 이제 실제 AI 대화를 시도할게요.'
@@ -604,6 +638,7 @@ function enableDemoMode() {
   apiKeyInput.value = '';
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
+  refreshTutorSurface();
   appendAssistant('데모 모드로 전환했어. 영국영어 톤으로 짧고 자연스럽게 보여줄게.');
 }
 
@@ -639,19 +674,20 @@ function applySettingsUI() {
   ttsModeSelect.value = STATE.settings.ttsMode || 'browser';
   ttsModelInput.value = STATE.settings.ttsModel || 'gpt-4o-mini-tts';
   ttsVoiceInput.value = STATE.settings.ttsVoice || 'nova';
+  if (settingsDetails) settingsDetails.open = Boolean(STATE.settings.apiKey || STATE.settings.proxyUrl);
   updateModeBadge();
 }
 
 function updateModeBadge() {
   if (STATE.settings.apiKey) {
-    modeBadge.textContent = `현재: 개인 API 직접 연결 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`;
+    modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'}`;
     return;
   }
   if (getProxyBaseUrl()) {
-    modeBadge.textContent = `현재: 공개 AI 서버 연결 (${STATE.settings.model}) / 음성: ${STATE.settings.ttsMode === 'openai' ? '고급 AI 음성' : '브라우저 음성'}`;
+    modeBadge.textContent = `공개 AI 서버 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'}`;
     return;
   }
-  modeBadge.textContent = '현재: 데모 모드';
+  modeBadge.textContent = '데모 모드 · 브라우저에서 바로 체험 가능';
 }
 
 function normalizeProxyUrl(value) {
@@ -904,7 +940,8 @@ async function startVideoLesson() {
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
   updateAnnaSubtitle('Right — start with one short sentence.');
-  appendAssistant('📹 화상 회화 모드를 시작했어. 영국영어 느낌으로 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.');
+  if (stageMoodText) stageMoodText.textContent = 'Camera-call mode is ready. One short sentence is enough.';
+  appendAssistant('📹 화상 회화 모드를 시작했어. 실제 통화처럼 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.');
   speakText('Right — start with one short sentence.');
 }
 
@@ -1016,6 +1053,16 @@ function endVideoLesson() {
 
 function updateCallStatus(text) {
   callStatusBadge.textContent = text;
+  if (!stageMoodText) return;
+  const map = {
+    '통화 전': 'Ready for a natural British-English chat.',
+    '화상 회화 중': 'Stay relaxed — short answers are best.',
+    '듣는 중': 'I\'m listening. Go on.',
+    'ANNA 답변 중': 'ANNA is replying in a calm British tone.',
+    'ANNA 답변 준비 중': 'Give me a second — shaping a natural reply.',
+    '통화 종료': 'Call ended. You can restart any time.',
+  };
+  stageMoodText.textContent = map[text] || text;
 }
 
 function updateAnnaSubtitle(text) {
@@ -1035,6 +1082,7 @@ function setTutorMood(mode) {
     annaStage.classList.add('call-active', 'mood-speaking', 'call-speaking');
     avatarFace.classList.add('mood-speaking');
     updateAvatarStatus('ANNA가 말하는 중');
+    if (stageMoodText) stageMoodText.textContent = 'ANNA is speaking now — listen for the rhythm.';
     return;
   }
   if (mode === 'thinking') {
@@ -1042,6 +1090,7 @@ function setTutorMood(mode) {
     annaStage.classList.add('mood-thinking');
     avatarFace.classList.add('mood-thinking');
     updateAvatarStatus('ANNA가 생각하는 중');
+    if (stageMoodText) stageMoodText.textContent = 'Thinking of the most natural way to say it.';
     return;
   }
   if (mode === 'listening') {
@@ -1049,12 +1098,16 @@ function setTutorMood(mode) {
     annaStage.classList.add('mood-listening');
     avatarFace.classList.add('mood-listening');
     updateAvatarStatus('ANNA가 듣는 중');
+    if (stageMoodText) stageMoodText.textContent = 'I\'m listening — say it in one short line.';
     return;
   }
   annaSpeakingBars.classList.add('hidden');
   annaStage.classList.add('mood-idle');
   avatarFace.classList.add('mood-idle');
   updateAvatarStatus(STATE.call.active ? '화상 회화 준비 완료' : 'AI 튜터 대기중');
+  if (stageMoodText) stageMoodText.textContent = STATE.call.active
+    ? 'Stay relaxed — short answers are best.'
+    : 'Ready for a natural British-English chat.';
 }
 
 function setAvatar(face) {

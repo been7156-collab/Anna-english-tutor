@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ANNA 영어쌤</title>
-    <link rel="stylesheet" href="./styles.css?v=20260602d" />
+    <link rel="stylesheet" href="./styles.css?v=20260602e" />
   </head>
   <body>
     <div class="app-shell">
@@ -21,6 +21,11 @@
           </div>
           <h1>ANNA 영어쌤</h1>
           <p class="muted">한국어로 물어봐도 설명해주고, 영어로 답하면 고쳐주는 데일리 회화 튜터</p>
+          <div class="brand-chips">
+            <span class="brand-chip">Real-person AI tutor</span>
+            <span class="brand-chip">British English</span>
+            <span class="brand-chip">Female voice first</span>
+          </div>
         </div>
 
         <section class="panel">
@@ -60,43 +65,50 @@
         </section>
 
         <section class="panel settings-panel">
-          <h2>AI 설정</h2>
-          <p class="muted small">데모 모드, 개인 API 키 직접 사용, 또는 공개 프록시 서버 연결 중 하나로 사용할 수 있어요.</p>
-          <label>
-            공개 AI 서버 URL
-            <input id="proxyUrlInput" type="text" placeholder="https://anna-english-tutor.vercel.app/api (선택)" />
-          </label>
-          <label>
-            OpenAI 호환 API 키
-            <input id="apiKeyInput" type="password" placeholder="sk-... (선택)" />
-          </label>
-          <label>
-            Base URL
-            <input id="baseUrlInput" type="text" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1" />
-          </label>
-          <label>
-            Model
-            <input id="modelInput" type="text" placeholder="gpt-4.1-mini" value="gpt-4.1-mini" />
-          </label>
-          <label>
-            음성 모드
-            <select id="ttsModeSelect">
-              <option value="browser">브라우저 기본 음성</option>
-              <option value="openai">고급 AI 음성 (OpenAI 호환)</option>
-            </select>
-          </label>
-          <label>
-            음성 모델
-            <input id="ttsModelInput" type="text" placeholder="gpt-4o-mini-tts" value="gpt-4o-mini-tts" />
-          </label>
-          <label>
-            음성 이름
-            <input id="ttsVoiceInput" type="text" placeholder="nova / shimmer / alloy" value="nova" />
-          </label>
-          <div class="settings-actions">
-            <button id="saveSettingsBtn">설정 저장</button>
-            <button id="demoModeBtn">데모 모드 사용</button>
-          </div>
+          <details id="settingsDetails" class="settings-details">
+            <summary>
+              <span>고급 AI 설정</span>
+              <span class="muted small">필요할 때만 열기</span>
+            </summary>
+            <div class="settings-body">
+              <p class="muted small">데모 모드, 개인 API 키 직접 사용, 또는 공개 프록시 서버 연결 중 하나로 사용할 수 있어요.</p>
+              <label>
+                공개 AI 서버 URL
+                <input id="proxyUrlInput" type="text" placeholder="https://anna-english-tutor.vercel.app/api (선택)" />
+              </label>
+              <label>
+                OpenAI 호환 API 키
+                <input id="apiKeyInput" type="password" placeholder="sk-... (선택)" />
+              </label>
+              <label>
+                Base URL
+                <input id="baseUrlInput" type="text" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1" />
+              </label>
+              <label>
+                Model
+                <input id="modelInput" type="text" placeholder="gpt-4.1-mini" value="gpt-4.1-mini" />
+              </label>
+              <label>
+                음성 모드
+                <select id="ttsModeSelect">
+                  <option value="browser">브라우저 기본 음성</option>
+                  <option value="openai">고급 AI 음성 (OpenAI 호환)</option>
+                </select>
+              </label>
+              <label>
+                음성 모델
+                <input id="ttsModelInput" type="text" placeholder="gpt-4o-mini-tts" value="gpt-4o-mini-tts" />
+              </label>
+              <label>
+                음성 이름
+                <input id="ttsVoiceInput" type="text" placeholder="nova / shimmer / alloy" value="nova" />
+              </label>
+              <div class="settings-actions">
+                <button id="saveSettingsBtn">설정 저장</button>
+                <button id="demoModeBtn">데모 모드 사용</button>
+              </div>
+            </div>
+          </details>
           <div id="modeBadge" class="mode-badge">현재: 데모 모드</div>
         </section>
       </aside>
@@ -107,6 +119,11 @@
             <div class="eyebrow">Daily English Companion</div>
             <h2>영어로 말해보고, 막히면 한국어로 물어보세요.</h2>
             <p>AI가 정답 문장, 교정, 더 자연스러운 표현, 숙어, 한국어 설명까지 한 번에 도와줍니다.</p>
+            <div class="hero-points">
+              <span>실사형 ANNA</span>
+              <span>영국식 여성 음성 우선</span>
+              <span>화상통화 느낌 회화모드</span>
+            </div>
           </div>
           <div class="hero-actions">
             <button id="startVideoLessonBtn" class="primary-btn">📹 카메라+회화 시작</button>
@@ -121,6 +138,11 @@
               <div class="eyebrow">Face-to-Face Practice</div>
               <h3>ANNA와 화상채팅처럼 회화 연습</h3>
               <p class="muted">버튼 한 번으로 카메라를 켜고 바로 말하면, ANNA가 듣고 바로 답하도록 만들었어요.</p>
+              <div class="call-scene-chips">
+                <span>Late-30s British tutor</span>
+                <span>Real-person portrait mode</span>
+                <span>Short natural replies</span>
+              </div>
             </div>
             <div id="callStatusBadge" class="mode-badge">통화 전</div>
           </div>
@@ -128,9 +150,17 @@
           <div class="call-grid">
             <div class="call-card anna-card">
               <div class="call-screen anna-screen mood-idle" id="annaStage">
+                <div class="stage-badge-row">
+                  <span class="stage-badge stage-badge--live">ANNA · LIVE</span>
+                  <span class="stage-badge" id="stageVoiceBadge">Voice · Nova</span>
+                </div>
                 <div class="anna-photo-shell anna-photo-shell--call" aria-label="ANNA 화상 아바타">
                   <img class="anna-photo" src="./assets/anna-real-ai.jpg" alt="실제 사람처럼 보이는 ANNA AI 튜터" />
                   <div class="anna-photo-overlay"></div>
+                </div>
+                <div class="stage-presence">
+                  <strong>ANNA</strong>
+                  <span id="stageMoodText">Ready for a natural British-English chat.</span>
                 </div>
                 <div class="anna-speaking-bars hidden" id="annaSpeakingBars">
                   <span></span><span></span><span></span><span></span>
@@ -161,6 +191,7 @@
             <button id="repeatAnnaBtn" class="ghost-btn">🔁 ANNA 다시 말하기</button>
             <button id="endVideoLessonBtn" class="ghost-btn">📴 화상 회화 종료</button>
           </div>
+          <div id="browserHint" class="browser-hint hidden"></div>
         </section>
 
         <section id="chatWindow" class="chat-window" aria-live="polite"></section>
@@ -191,6 +222,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260602d"></script>
+    <script src="./app.js?v=20260602e"></script>
   </body>
 </html>

@@ -52,6 +52,26 @@ button { cursor: pointer; }
 .brand-card h1, .hero-card h2, .panel h2 { margin: 0 0 10px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; line-height: 1.5; }
+.brand-chips, .hero-points, .call-scene-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.brand-chips { margin-top: 12px; }
+.brand-chip, .hero-points span, .call-scene-chips span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text);
+  font-size: 12px;
+}
+.hero-points { margin-top: 14px; }
+.call-scene-chips {
+  margin-top: 14px;
+}
 .avatar-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .avatar-face {
   width: 72px;
@@ -335,6 +355,39 @@ button { cursor: pointer; }
   100% { box-shadow: 0 0 0 0 rgba(157,255,191,0); }
 }
 label { display: block; font-size: 14px; margin-bottom: 12px; color: var(--muted); }
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-details {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+  overflow: hidden;
+}
+.settings-details summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.settings-details summary::-webkit-details-marker { display: none; }
+.settings-details summary::after {
+  content: '＋';
+  color: var(--accent);
+  margin-left: auto;
+}
+.settings-details[open] summary::after {
+  content: '－';
+}
+.settings-body {
+  padding: 0 16px 16px;
+}
 input, select, textarea {
   width: 100%;
   margin-top: 8px;
@@ -365,8 +418,17 @@ textarea { resize: vertical; min-height: 78px; }
   border: 1px solid var(--line);
 }
 .full { width: 100%; }
-.quick-actions, .settings-actions, .hero-actions, .composer-actions {
+.quick-actions, .settings-actions, .composer-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
+}
+.hero-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: min(360px, 100%);
+}
+.hero-actions > :last-child {
+  grid-column: 1 / -1;
 }
 .mode-badge {
   margin-top: 10px;
@@ -416,6 +478,31 @@ textarea { resize: vertical; min-height: 78px; }
   border: 1px solid rgba(255,255,255,0.08);
   background: linear-gradient(180deg, rgba(8,15,30,.35), rgba(8,15,30,.95));
 }
+.stage-badge-row {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 4;
+}
+.stage-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(4,8,18,.58);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  color: var(--text);
+}
+.stage-badge--live {
+  color: #caffdb;
+  border-color: rgba(157,255,191,.25);
+}
 .anna-screen {
   display: grid;
   place-items: center;
@@ -446,6 +533,25 @@ textarea { resize: vertical; min-height: 78px; }
   background: linear-gradient(180deg, rgba(10,18,32,0), rgba(10,18,32,.74));
   pointer-events: none;
   z-index: 2;
+}
+.stage-presence {
+  position: absolute;
+  left: 18px;
+  bottom: 62px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 65%;
+}
+.stage-presence strong {
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+.stage-presence span {
+  color: rgba(238,243,255,.86);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .call-subtitle {
   position: absolute;
@@ -544,6 +650,15 @@ textarea { resize: vertical; min-height: 78px; }
   flex-wrap: wrap;
   gap: 10px;
 }
+.browser-hint {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,207,113,0.18);
+  background: rgba(255,207,113,0.08);
+  color: #ffe2a8;
+  line-height: 1.5;
+  font-size: 13px;
+}
 .call-active {
   box-shadow: 0 0 0 1px rgba(113,209,255,.4), 0 18px 40px rgba(0,0,0,.3);
 }
@@ -611,6 +726,7 @@ textarea { resize: vertical; min-height: 78px; }
 @media (max-width: 1080px) {
   .app-shell { grid-template-columns: 1fr; }
   .hero-card { flex-direction: column; align-items: flex-start; }
+  .hero-actions { width: 100%; min-width: 0; }
   .video-call-header { flex-direction: column; }
   .call-grid { grid-template-columns: 1fr; }
 }
