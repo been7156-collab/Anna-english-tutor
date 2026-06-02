@@ -395,6 +395,41 @@ label { display: block; font-size: 14px; margin-bottom: 12px; color: var(--muted
 .settings-body {
   padding: 0 16px 16px;
 }
+.toggle-stack {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+}
+.toggle-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.toggle-row strong {
+  color: var(--text);
+  font-size: 14px;
+}
+.toggle-row small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+.toggle-row input,
+.toggle-chip input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #55b8ff;
+}
 input, select, textarea {
   width: 100%;
   margin-top: 8px;
@@ -495,6 +530,12 @@ textarea { resize: vertical; min-height: 78px; }
   justify-content: space-between;
   gap: 10px;
   z-index: 4;
+}
+.stage-badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .stage-badge {
   display: inline-flex;
@@ -658,6 +699,25 @@ textarea { resize: vertical; min-height: 78px; }
   flex-wrap: wrap;
   gap: 10px;
 }
+.call-quick-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(113,209,255,0.2);
+  background: rgba(113,209,255,0.08);
+  color: var(--text);
+}
+.toggle-chip span {
+  color: var(--text);
+  font-size: 13px;
+}
 .browser-hint {
   padding: 12px 14px;
   border-radius: 14px;
@@ -756,11 +816,15 @@ textarea { resize: vertical; min-height: 78px; }
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
+  .call-quick-toggles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
   .settings-actions {
     display: grid;
     grid-template-columns: 1fr;
   }
-  .quick-actions > *, .composer-actions > *, .call-controls > *, .settings-actions > * {
+  .quick-actions > *, .composer-actions > *, .call-controls > *, .call-quick-toggles > *, .settings-actions > * {
     width: 100%;
   }
   .call-screen {

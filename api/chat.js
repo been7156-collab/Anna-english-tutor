@@ -1,6 +1,36 @@
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
+function getReplyStyleHints({ isVoiceCall = false, ultraFastMode = false, oneLineReplyMode = false } = {}) {
+  const hints = [];
+  if (ultraFastMode) {
+    hints.push('Ultra-fast conversation mode is enabled. Prioritise immediate response over explanation.');
+  }
+  if (isVoiceCall && oneLineReplyMode) {
+    hints.push('For this live call turn, keep the reply to exactly one short sentence unless safety or clarity absolutely requires more.');
+  }
+  return hints.join(' ');
+}
+
+function pickReplyModel({ model = DEFAULT_MODEL, isVoiceCall = false, ultraFastMode = false } = {}) {
+  if (isVoiceCall && ultraFastMode && model === 'gpt-4.1-mini') {
+    return 'gpt-4.1-nano';
+  }
+  return model;
+}
+
+function getReplyMaxTokens({ isVoiceCall = false, ultraFastMode = false, oneLineReplyMode = false } = {}) {
+  if (isVoiceCall && oneLineReplyMode) return 55;
+  if (isVoiceCall) return ultraFastMode ? 90 : 140;
+  return 220;
+}
+
+function getReplyTemperature({ isVoiceCall = false, ultraFastMode = false } = {}) {
+  if (isVoiceCall && ultraFastMode) return 0.45;
+  if (isVoiceCall) return 0.6;
+  return 0.8;
+}
+
 function setCors(res, origin = '*') {
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
@@ -58,7 +88,13 @@ export default async function handler(req, res) {
   const theme = String(body.theme || 'daily');
   const difficulty = String(body.difficulty || 'gentle');
   const isVoiceCall = Boolean(body.isVoiceCall);
-  const model = String(body.model || DEFAULT_MODEL);
+  const ultraFastMode = Boolean(body.ultraFastMode);
+  const oneLineReplyMode = Boolean(body.oneLineReplyMode);
+  const model = pickReplyModel({
+    model: String(body.model || DEFAULT_MODEL),
+    isVoiceCall,
+    ultraFastMode,
+  });
   const recentMessages = Array.isArray(body.recentMessages)
     ? body.recentMessages
         .slice(-10)
@@ -77,9 +113,10 @@ export default async function handler(req, res) {
   }[difficulty] || 'Correct gently and briefly.';
 
   const themeHint = `Current theme: ${theme}.`;
+  const replyStyleHints = getReplyStyleHints({ isVoiceCall, ultraFastMode, oneLineReplyMode });
 
   const messages = [
-    { role: 'system', content: `${buildSystemPrompt()} ${coachHint} ${themeHint}` },
+    { role: 'system', content: `${buildSystemPrompt()} ${coachHint} ${themeHint} ${replyStyleHints}`.trim() },
     ...recentMessages,
     { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${userText}` : userText }
   ];
@@ -92,9 +129,9 @@ export default async function handler(req, res) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.8,
+      temperature: getReplyTemperature({ isVoiceCall, ultraFastMode }),
       response_format: { type: 'json_object' },
-      max_tokens: isVoiceCall ? 90 : 220,
+      max_tokens: getReplyMaxTokens({ isVoiceCall, ultraFastMode, oneLineReplyMode }),
       messages
     })
   });

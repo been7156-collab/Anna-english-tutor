@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
     <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260602f" />
+    <link rel="stylesheet" href="./styles.css?v=20260603a" />
   </head>
   <body>
     <div class="app-shell">
@@ -115,6 +115,22 @@
                 음성 이름
                 <input id="ttsVoiceInput" type="text" placeholder="nova / shimmer / alloy" value="nova" />
               </label>
+              <div class="toggle-stack">
+                <label class="toggle-row" for="ultraFastModeToggle">
+                  <span>
+                    <strong>초고속 회화 모드</strong>
+                    <small>화상/음성 회화에서 더 짧고 빠르게 응답</small>
+                  </span>
+                  <input id="ultraFastModeToggle" type="checkbox" checked />
+                </label>
+                <label class="toggle-row" for="oneLineReplyToggle">
+                  <span>
+                    <strong>1문장 답변 모드</strong>
+                    <small>화상 회화에서는 가능하면 한 문장으로만 답하기</small>
+                  </span>
+                  <input id="oneLineReplyToggle" type="checkbox" checked />
+                </label>
+              </div>
               <div class="settings-actions">
                 <button id="saveSettingsBtn">설정 저장</button>
                 <button id="demoModeBtn">데모 모드 사용</button>
@@ -164,7 +180,11 @@
               <div class="call-screen anna-screen mood-idle" id="annaStage">
                 <div class="stage-badge-row">
                   <span class="stage-badge stage-badge--live">ANNA · LIVE</span>
-                  <span class="stage-badge" id="stageVoiceBadge">Voice · Nova</span>
+                  <div class="stage-badge-group">
+                    <span class="stage-badge" id="callSpeedBadge">Ultra-fast ON</span>
+                    <span class="stage-badge" id="callReplyBadge">1-line ON</span>
+                    <span class="stage-badge" id="stageVoiceBadge">Voice · Nova</span>
+                  </div>
                 </div>
                 <div class="anna-photo-shell anna-photo-shell--call" aria-label="ANNA 화상 아바타">
                   <img class="anna-photo" src="./assets/anna-real-ai.jpg" alt="실제 사람처럼 보이는 ANNA AI 튜터" />
@@ -203,6 +223,16 @@
             <button id="repeatAnnaBtn" class="ghost-btn">🔁 ANNA 다시 말하기</button>
             <button id="endVideoLessonBtn" class="ghost-btn">📴 화상 회화 종료</button>
           </div>
+          <div class="call-quick-toggles">
+            <label class="toggle-chip">
+              <input id="ultraFastMirrorToggle" type="checkbox" checked />
+              <span>초고속</span>
+            </label>
+            <label class="toggle-chip">
+              <input id="oneLineMirrorToggle" type="checkbox" checked />
+              <span>1문장 답변</span>
+            </label>
+          </div>
           <div id="browserHint" class="browser-hint hidden"></div>
         </section>
 
@@ -234,6 +264,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260602f"></script>
+    <script src="./app.js?v=20260603a"></script>
   </body>
 </html>

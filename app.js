@@ -16,11 +16,17 @@ const modelInput = document.getElementById('modelInput');
 const ttsModeSelect = document.getElementById('ttsModeSelect');
 const ttsModelInput = document.getElementById('ttsModelInput');
 const ttsVoiceInput = document.getElementById('ttsVoiceInput');
+const ultraFastModeToggle = document.getElementById('ultraFastModeToggle');
+const oneLineReplyToggle = document.getElementById('oneLineReplyToggle');
+const ultraFastMirrorToggle = document.getElementById('ultraFastMirrorToggle');
+const oneLineMirrorToggle = document.getElementById('oneLineMirrorToggle');
 const callStatusBadge = document.getElementById('callStatusBadge');
 const annaSubtitle = document.getElementById('annaSubtitle');
 const annaStage = document.getElementById('annaStage');
 const annaSpeakingBars = document.getElementById('annaSpeakingBars');
 const stageVoiceBadge = document.getElementById('stageVoiceBadge');
+const callSpeedBadge = document.getElementById('callSpeedBadge');
+const callReplyBadge = document.getElementById('callReplyBadge');
 const stageMoodText = document.getElementById('stageMoodText');
 const browserHint = document.getElementById('browserHint');
 const settingsDetails = document.getElementById('settingsDetails');
@@ -39,6 +45,8 @@ const STATE = {
     listening: false,
     recognition: null,
     resumeTimer: null,
+    turnInFlight: false,
+    heardFinal: false,
   },
 };
 
@@ -84,6 +92,10 @@ function wireEvents() {
   document.getElementById('endVideoLessonBtn').addEventListener('click', endVideoLesson);
   ttsModeSelect.addEventListener('change', refreshTutorSurface);
   ttsVoiceInput.addEventListener('input', refreshTutorSurface);
+  ultraFastModeToggle.addEventListener('change', onConversationModeToggleChange);
+  oneLineReplyToggle.addEventListener('change', onConversationModeToggleChange);
+  ultraFastMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
+  oneLineMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
   closeFeedbackBtn.addEventListener('click', () => feedbackPanel.classList.add('hidden'));
   document.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => onQuickAction(btn.dataset.quick));
@@ -97,10 +109,79 @@ function getVoiceBadgeLabel() {
     : 'Voice · Browser';
 }
 
+function isUltraFastModeEnabled() {
+  return Boolean(STATE.settings.ultraFastMode);
+}
+
+function isOneLineReplyModeEnabled() {
+  return Boolean(STATE.settings.oneLineReplyMode);
+}
+
+function syncConversationModeControls() {
+  if (ultraFastModeToggle) ultraFastModeToggle.checked = isUltraFastModeEnabled();
+  if (oneLineReplyToggle) oneLineReplyToggle.checked = isOneLineReplyModeEnabled();
+  if (ultraFastMirrorToggle) ultraFastMirrorToggle.checked = isUltraFastModeEnabled();
+  if (oneLineMirrorToggle) oneLineMirrorToggle.checked = isOneLineReplyModeEnabled();
+}
+
+function onConversationModeToggleChange() {
+  STATE.settings.ultraFastMode = Boolean(ultraFastModeToggle?.checked);
+  STATE.settings.oneLineReplyMode = Boolean(oneLineReplyToggle?.checked);
+  syncConversationModeControls();
+  persistSettings();
+  updateModeBadge();
+  refreshTutorSurface();
+}
+
+function syncMirrorToggleToMain(event) {
+  const isUltra = event.currentTarget === ultraFastMirrorToggle;
+  if (isUltra && ultraFastModeToggle) ultraFastModeToggle.checked = ultraFastMirrorToggle.checked;
+  if (!isUltra && oneLineReplyToggle) oneLineReplyToggle.checked = oneLineMirrorToggle.checked;
+  onConversationModeToggleChange();
+}
+
+function persistSettings() {
+  localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
+}
+
+function getReplyStyleHints({ isVoiceCall = false } = {}) {
+  const hints = [];
+  if (isUltraFastModeEnabled()) {
+    hints.push('Ultra-fast conversation mode is enabled. Prioritise immediate response over explanation.');
+  }
+  if (isVoiceCall && isOneLineReplyModeEnabled()) {
+    hints.push('For this live call turn, keep the reply to exactly one short sentence unless safety or clarity absolutely requires more.');
+  }
+  return hints.join(' ');
+}
+
+function getReplyMaxTokens({ isVoiceCall = false } = {}) {
+  if (isVoiceCall && isOneLineReplyModeEnabled()) return 55;
+  if (isVoiceCall) return isUltraFastModeEnabled() ? 90 : 140;
+  return 220;
+}
+
+function getReplyTemperature({ isVoiceCall = false } = {}) {
+  if (isVoiceCall && isUltraFastModeEnabled()) return 0.45;
+  if (isVoiceCall) return 0.6;
+  return 0.8;
+}
+
+function getCallResumeDelay() {
+  if (!STATE.call.active) return 120;
+  if (isUltraFastModeEnabled()) return 40;
+  return 120;
+}
+
 function refreshTutorSurface() {
   if (stageVoiceBadge) stageVoiceBadge.textContent = getVoiceBadgeLabel();
+  if (callSpeedBadge) callSpeedBadge.textContent = isUltraFastModeEnabled() ? 'Ultra-fast ON' : 'Ultra-fast OFF';
+  if (callReplyBadge) callReplyBadge.textContent = isOneLineReplyModeEnabled() ? '1-line ON' : '1-line OFF';
+  syncConversationModeControls();
   if (!stageMoodText || STATE.call.active) return;
-  stageMoodText.textContent = 'Ready for a natural British-English chat.';
+  stageMoodText.textContent = isUltraFastModeEnabled()
+    ? 'Ready for a very fast, natural British-English call.'
+    : 'Ready for a natural British-English chat.';
 }
 
 function applyEnvironmentHints() {
@@ -147,11 +228,12 @@ async function onSubmit(e) {
 
 async function handleUserTurn(text, options = {}) {
   appendUser(text);
+  STATE.call.turnInFlight = Boolean(STATE.call.active && options.source?.includes('voice'));
   setAvatar('🤔');
   setTutorMood('thinking');
   if (STATE.call.active && options.source?.includes('voice')) {
     updateCallStatus('ANNA 답변 준비 중');
-    updateAnnaSubtitle('Right — give me a second.');
+    updateAnnaSubtitle(isUltraFastModeEnabled() ? 'Right — one sec.' : 'Right — give me a second.');
   }
   try {
     const reply = await generateTutorReply(text);
@@ -172,6 +254,7 @@ async function handleUserTurn(text, options = {}) {
     appendAssistant(`오류가 있었어요: ${err.message}`);
     updateAnnaSubtitle('잠시 오류가 있었어요. 다시 한 번 말해볼까요?');
   } finally {
+    STATE.call.turnInFlight = false;
     setAvatar('😊');
     setTutorMood('idle');
   }
@@ -202,6 +285,8 @@ function runHelperPrompt(kind) {
 }
 
 async function startVideoConversation() {
+  if (STATE.call.turnInFlight) return;
+
   if (!STATE.call.active) {
     await startVideoLesson();
   }
@@ -267,6 +352,7 @@ async function realAiReply(userText) {
   const isVoiceCall = STATE.call.active;
   const model = pickReplyModel({ isVoiceCall });
   const recentMessages = getRecentMessagesForReply({ isVoiceCall });
+  const replyStyleHints = getReplyStyleHints({ isVoiceCall });
   const system = [
     'You are ANNA, a late-30s British English female tutor with a cool, calm, sharp style.',
     'The user dislikes AI-sounding phrasing and long analysis.',
@@ -294,7 +380,7 @@ async function realAiReply(userText) {
     : '';
 
   const messages = [
-    { role: 'system', content: system },
+    { role: 'system', content: `${system} ${replyStyleHints}`.trim() },
     ...recentMessages,
     { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${userText}` : userText }
   ];
@@ -307,9 +393,9 @@ async function realAiReply(userText) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.8,
+      temperature: getReplyTemperature({ isVoiceCall }),
       response_format: { type: 'json_object' },
-      max_tokens: isVoiceCall ? 90 : 220,
+      max_tokens: getReplyMaxTokens({ isVoiceCall }),
       messages,
     })
   });
@@ -344,7 +430,9 @@ async function proxyAiReply(userText) {
     difficulty: difficultySelect.value,
     isVoiceCall,
     recentMessages: getRecentMessagesForReply({ isVoiceCall }),
-    model: pickReplyModel({ isVoiceCall })
+    model: pickReplyModel({ isVoiceCall }),
+    ultraFastMode: isUltraFastModeEnabled(),
+    oneLineReplyMode: isOneLineReplyModeEnabled(),
   };
 
   const res = await fetch(endpoint, {
@@ -602,7 +690,7 @@ function sampleAnswerForTheme(theme) {
 
 function pickReplyModel({ isVoiceCall = false } = {}) {
   const configured = String(STATE.settings.model || 'gpt-4.1-mini').trim();
-  if (isVoiceCall) {
+  if (isVoiceCall && isUltraFastModeEnabled()) {
     return configured === 'gpt-4.1-mini' ? 'gpt-4.1-nano' : configured;
   }
   return configured || 'gpt-4.1-mini';
@@ -635,8 +723,10 @@ function saveSettingsFromUI() {
     ttsMode: ttsModeSelect.value || 'browser',
     ttsModel: ttsModelInput.value.trim() || 'gpt-4o-mini-tts',
     ttsVoice: ttsVoiceInput.value.trim() || 'nova',
+    ultraFastMode: Boolean(ultraFastModeToggle?.checked),
+    oneLineReplyMode: Boolean(oneLineReplyToggle?.checked),
   };
-  localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
+  persistSettings();
   updateModeBadge();
   refreshTutorSurface();
   if (settingsDetails) settingsDetails.open = false;
@@ -654,33 +744,29 @@ function enableDemoMode() {
   STATE.settings.apiKey = '';
   proxyUrlInput.value = '';
   apiKeyInput.value = '';
-  localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
+  persistSettings();
   updateModeBadge();
   refreshTutorSurface();
   appendAssistant('데모 모드로 전환했어. 영국영어 톤으로 짧고 자연스럽게 보여줄게.');
 }
 
 function loadSettings() {
+  const defaults = {
+    proxyUrl: '',
+    apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4.1-mini',
+    ttsMode: 'browser',
+    ttsModel: 'gpt-4o-mini-tts',
+    ttsVoice: 'nova',
+    ultraFastMode: true,
+    oneLineReplyMode: true,
+  };
+
   try {
-    return JSON.parse(localStorage.getItem('englishTutorSettings')) || {
-      proxyUrl: '',
-      apiKey: '',
-      baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4.1-mini',
-      ttsMode: 'browser',
-      ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'nova'
-    };
+    return { ...defaults, ...(JSON.parse(localStorage.getItem('englishTutorSettings')) || {}) };
   } catch {
-    return {
-      proxyUrl: '',
-      apiKey: '',
-      baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4.1-mini',
-      ttsMode: 'browser',
-      ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'nova'
-    };
+    return defaults;
   }
 }
 
@@ -692,20 +778,22 @@ function applySettingsUI() {
   ttsModeSelect.value = STATE.settings.ttsMode || 'browser';
   ttsModelInput.value = STATE.settings.ttsModel || 'gpt-4o-mini-tts';
   ttsVoiceInput.value = STATE.settings.ttsVoice || 'nova';
+  syncConversationModeControls();
   if (settingsDetails) settingsDetails.open = Boolean(STATE.settings.apiKey || STATE.settings.proxyUrl);
   updateModeBadge();
 }
 
 function updateModeBadge() {
+  const callModeLabel = `${isUltraFastModeEnabled() ? '초고속' : '기본속도'} · ${isOneLineReplyModeEnabled() ? '1문장' : '자유응답'}`;
   if (STATE.settings.apiKey) {
-    modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'}`;
+    modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}`;
     return;
   }
   if (getProxyBaseUrl()) {
-    modeBadge.textContent = `공개 AI 서버 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'}`;
+    modeBadge.textContent = `공개 AI 서버 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}`;
     return;
   }
-  modeBadge.textContent = '데모 모드 · 브라우저에서 바로 체험 가능';
+  modeBadge.textContent = `데모 모드 · 브라우저에서 바로 체험 가능 · ${callModeLabel}`;
 }
 
 function normalizeProxyUrl(value) {
@@ -918,9 +1006,9 @@ function queueCallListeningResume() {
   }
   STATE.call.resumeTimer = setTimeout(() => {
     STATE.call.resumeTimer = null;
-    if (!STATE.call.active || STATE.call.listening) return;
+    if (!STATE.call.active || STATE.call.listening || STATE.call.turnInFlight) return;
     startCallSpeechRecognition();
-  }, 120);
+  }, getCallResumeDelay());
 }
 
 function isEmbeddedMobileBrowser() {
@@ -950,7 +1038,7 @@ function startSpeechRecognition() {
     const transcript = event.results[0][0].transcript.trim();
     messageInput.value = transcript;
     appendAssistant(`들린 문장: ${transcript}`);
-    await handleUserTurn(transcript, { autoSpeak: STATE.call.active, source: 'voice' });
+    await handleUserTurn(transcript, { autoSpeak: true, source: 'voice' });
     messageInput.value = '';
   };
   recognition.onerror = (event) => {
@@ -1001,13 +1089,15 @@ function startCallSpeechRecognition() {
     return;
   }
 
-  if (STATE.call.listening) return;
+  if (STATE.call.listening || STATE.call.turnInFlight) return;
 
   const recognition = new SpeechRecognition();
   STATE.call.recognition = recognition;
   STATE.call.listening = true;
+  STATE.call.heardFinal = false;
   recognition.lang = 'en-GB';
-  recognition.interimResults = false;
+  recognition.interimResults = true;
+  recognition.continuous = false;
   recognition.maxAlternatives = 1;
   annaStage.classList.add('call-listening');
   updateCallStatus('듣는 중');
@@ -1016,14 +1106,37 @@ function startCallSpeechRecognition() {
   setTutorMood('listening');
 
   recognition.onresult = async (event) => {
-    const transcript = event.results[0][0].transcript.trim();
-    messageInput.value = transcript;
-    updateAnnaSubtitle(`You said: ${transcript}`);
+    let finalTranscript = '';
+    let interimTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const result = event.results[i];
+      const transcript = result[0]?.transcript?.trim() || '';
+      if (!transcript) continue;
+      if (result.isFinal) {
+        finalTranscript += `${transcript} `;
+      } else {
+        interimTranscript += `${transcript} `;
+      }
+    }
+
+    const liveTranscript = (interimTranscript || finalTranscript).trim();
+    if (liveTranscript) {
+      updateAnnaSubtitle(`You said: ${liveTranscript}`);
+    }
+
+    const transcript = finalTranscript.trim();
+    if (!transcript) return;
+
+    STATE.call.heardFinal = true;
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
     setTutorMood('idle');
+    messageInput.value = transcript;
+    try { recognition.stop(); } catch {}
     await handleUserTurn(transcript, { autoSpeak: true, source: 'voice-call' });
+    messageInput.value = '';
   };
 
   recognition.onerror = (event) => {
@@ -1037,6 +1150,9 @@ function startCallSpeechRecognition() {
     appendAssistant(`음성 인식 오류: ${event.error}.${hint}`);
     setAvatar('😊');
     setTutorMood('idle');
+    if (STATE.call.active && event.error === 'no-speech') {
+      queueCallListeningResume();
+    }
   };
 
   recognition.onend = () => {
@@ -1045,6 +1161,9 @@ function startCallSpeechRecognition() {
     if (STATE.call.active) updateCallStatus('화상 회화 중');
     setAvatar('😊');
     setTutorMood('idle');
+    if (STATE.call.active && !STATE.call.heardFinal && !STATE.call.turnInFlight) {
+      queueCallListeningResume();
+    }
   };
 
   recognition.start();
@@ -1065,6 +1184,8 @@ function endVideoLesson() {
   }
   STATE.call.active = false;
   STATE.call.listening = false;
+  STATE.call.turnInFlight = false;
+  STATE.call.heardFinal = false;
   userVideo.srcObject = null;
   userVideo.classList.remove('active');
   selfVideoFallback.classList.remove('hidden');
