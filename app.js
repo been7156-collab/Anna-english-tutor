@@ -203,11 +203,11 @@ function appendMessage(role, meta, text) {
 
 function renderFeedback(feedback) {
   feedbackPanel.classList.remove('hidden');
-  const correction = feedback.correction ? `<div class="feedback-card"><h4>짧은 교정</h4><p>${escapeHtml(feedback.correction)}</p></div>` : '';
-  const natural = feedback.answer ? `<div class="feedback-card"><h4>자연스러운 표현</h4><p>${escapeHtml(feedback.answer)}</p></div>` : '';
-  const tip = feedback.explanation ? `<div class="feedback-card"><h4>짧은 설명</h4><p>${escapeHtml(feedback.explanation)}</p></div>` : '';
+  const correction = feedback.correction ? `<div class="feedback-card"><h4>틀린 부분 / 교정</h4><p>${escapeHtml(feedback.correction)}</p></div>` : '';
+  const natural = feedback.answer ? `<div class="feedback-card"><h4>다시 말하면 좋은 영어</h4><p>${escapeHtml(feedback.answer)}</p></div>` : '';
+  const tip = feedback.explanation ? `<div class="feedback-card"><h4>한국어 설명</h4><p>${escapeHtml(feedback.explanation)}</p></div>` : '';
   const chips = (feedback.vocabulary || []).map((item) => `<span class="inline-chip">${escapeHtml(item)}</span>`).join('');
-  const vocab = chips ? `<div class="feedback-card"><h4>쓸 만한 표현</h4><div>${chips}</div></div>` : '';
+  const vocab = chips ? `<div class="feedback-card"><h4>추가로 써먹을 표현</h4><div>${chips}</div></div>` : '';
   feedbackContent.innerHTML = `<div class="feedback-grid">${natural}${correction}${tip}${vocab}</div>`;
 }
 
@@ -237,6 +237,11 @@ async function realAiReply(userText) {
     'Only correct briefly when needed, and keep the correction casual and short.',
     'If the user says they do not know, give one simple line they can copy and then keep the conversation moving.',
     'Use Korean only for very short support when helpful.',
+    'If the user\'s English is incorrect, unnatural, or missing a better expression, you must clearly fill the JSON fields: correction, explanation, and answer.',
+    'correction = what was wrong or awkward in the user\'s English, written briefly and clearly.',
+    'explanation = a short Korean explanation of why it should change.',
+    'answer = the improved English sentence the user can say next time.',
+    'If the user\'s English is already good, keep correction/explanation empty and answer can be a slightly more natural version only if truly helpful.',
     'For live voice conversation, sound like a real phone tutor: short turns, warm energy, natural filler phrases like "mm-hmm", "I see", or "got it" only when they fit naturally.',
     'For live voice conversation, prefer 1 to 2 short sentences in reply, usually under 18 words total unless a longer answer is truly necessary.',
     'When returning JSON, keep speakText especially concise and natural for audio.',
