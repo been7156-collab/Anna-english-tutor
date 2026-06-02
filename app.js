@@ -228,6 +228,7 @@ async function generateTutorReply(userText) {
 }
 
 async function realAiReply(userText) {
+  const isVoiceCall = STATE.call.active;
   const system = [
     'You are ANNA, a warm native-speaker style English conversation partner for a Korean learner.',
     'The user dislikes AI-sounding phrasing and long analysis.',
@@ -236,13 +237,20 @@ async function realAiReply(userText) {
     'Only correct briefly when needed, and keep the correction casual and short.',
     'If the user says they do not know, give one simple line they can copy and then keep the conversation moving.',
     'Use Korean only for very short support when helpful.',
+    'For live voice conversation, sound like a real phone tutor: short turns, warm energy, natural filler phrases like "mm-hmm", "I see", or "got it" only when they fit naturally.',
+    'For live voice conversation, prefer 1 to 2 short sentences in reply, usually under 18 words total unless a longer answer is truly necessary.',
+    'When returning JSON, keep speakText especially concise and natural for audio.',
     'Return valid JSON with keys: reply, answer, correction, explanation, vocabulary, subtitle, speakText.'
   ].join(' ');
+
+  const voiceHint = isVoiceCall
+    ? 'The user is speaking live in a call. Reply like a real tutor on a phone call: quick, warm, and easy to say back to.'
+    : '';
 
   const messages = [
     { role: 'system', content: system },
     ...STATE.messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: userText }
+    { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${userText}` : userText }
   ];
 
   const res = await fetch(`${STATE.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
@@ -339,13 +347,13 @@ async function demoReply(userText) {
 
 function conversationalFollowUp(natural, theme) {
   const lower = natural.toLowerCase();
-  if (theme === 'daily') return 'Nice! What did you do after that?';
-  if (theme === 'cafe') return lower.includes('americano') ? 'Great choice. Would you like anything else?' : 'Sounds good. What would you like next?';
+  if (theme === 'daily') return 'Mm-hmm, nice. What did you do after that?';
+  if (theme === 'cafe') return lower.includes('americano') ? 'Nice choice. Anything else for you?' : 'Okay, got it. What would you like next?';
   if (theme === 'travel') return 'Got it. When is your flight?';
   if (theme === 'church') return 'That sounds lovely. What is your church known for?';
   if (theme === 'worship') return 'Nice. What songs are you doing today?';
-  if (theme === 'pastoral') return 'I see. What part of ministry do you enjoy the most?';
-  return 'I see. Can you tell me a little more?';
+  if (theme === 'pastoral') return 'I see. What part of ministry do you enjoy most?';
+  return 'Mm-hmm. Tell me a little more.';
 }
 
 function translateKoreanHeuristically(text, theme) {
@@ -665,7 +673,7 @@ function queueCallListeningResume() {
     STATE.call.resumeTimer = null;
     if (!STATE.call.active || STATE.call.listening) return;
     startCallSpeechRecognition();
-  }, 250);
+  }, 120);
 }
 
 function startSpeechRecognition() {
@@ -698,7 +706,7 @@ async function startVideoLesson() {
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
   updateAnnaSubtitle('Hi! Let\'s talk naturally. You can start with one short sentence.');
-  appendAssistant('📹 화상 회화 모드를 시작했어요. 먼저 한 문장만 영어로 말해보세요. 막히면 “I don\'t know”라고 해도 제가 이어서 도와드릴게요.');
+  appendAssistant('📹 화상 회화 모드를 시작했어요. 실제 통화처럼 짧게 주고받아볼게요. 먼저 한 문장만 영어로 말해보세요. 막히면 “I don\'t know”라고 해도 제가 이어서 도와드릴게요.');
   speakText('Hi! Let\'s talk naturally. You can start with one short sentence.');
 }
 
