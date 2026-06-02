@@ -14,7 +14,7 @@
             <div class="avatar-face" id="avatarFace">
               <img src="./assets/anna-avatar.svg" alt="ANNA 튜터 아바타" class="avatar-image" />
             </div>
-            <div class="avatar-status"><span class="pulse"></span> AI 튜터 대기중</div>
+            <div class="avatar-status"><span class="pulse"></span><span id="avatarStatusText">AI 튜터 대기중</span></div>
           </div>
           <h1>ANNA 영어쌤</h1>
           <p class="muted">한국어로 물어봐도 설명해주고, 영어로 답하면 고쳐주는 데일리 회화 튜터</p>
@@ -87,8 +87,54 @@
             <p>AI가 정답 문장, 교정, 더 자연스러운 표현, 숙어, 한국어 설명까지 한 번에 도와줍니다.</p>
           </div>
           <div class="hero-actions">
+            <button id="startVideoLessonBtn" class="primary-btn">📹 화상 회화 시작</button>
             <button id="voiceBtn" class="secondary-btn">🎤 음성 인식</button>
             <button id="speakLastBtn" class="secondary-btn">🔊 마지막 답변 듣기</button>
+          </div>
+        </section>
+
+        <section class="video-call-panel">
+          <div class="video-call-header">
+            <div>
+              <div class="eyebrow">Face-to-Face Practice</div>
+              <h3>ANNA와 화상채팅처럼 회화 연습</h3>
+              <p class="muted">내 카메라 화면 + ANNA 응답 자막 + 음성 읽기로 실제 레슨처럼 연습할 수 있어요.</p>
+            </div>
+            <div id="callStatusBadge" class="mode-badge">통화 전</div>
+          </div>
+
+          <div class="call-grid">
+            <div class="call-card anna-card">
+              <div class="call-screen anna-screen" id="annaStage">
+                <img src="./assets/anna-avatar.svg" alt="ANNA 화상 아바타" class="call-avatar" />
+                <div class="anna-speaking-bars hidden" id="annaSpeakingBars">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <div class="call-subtitle" id="annaSubtitle">ANNA가 여기서 말해줄 거예요.</div>
+              </div>
+              <div class="call-meta-row">
+                <strong>ANNA 영어쌤</strong>
+                <span id="annaModeHint" class="muted small">카메라 없이도 사용 가능</span>
+              </div>
+            </div>
+
+            <div class="call-card self-card">
+              <div class="call-screen self-screen">
+                <video id="userVideo" autoplay playsinline muted></video>
+                <div id="selfVideoFallback" class="video-fallback">카메라를 켜면 내 화면이 여기에 보여요.</div>
+              </div>
+              <div class="call-meta-row">
+                <strong>나</strong>
+                <span id="selfTranscriptHint" class="muted small">영어로 말하고 막히면 한국어로 도움 요청도 가능</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="call-controls">
+            <button id="enableCameraBtn" class="secondary-btn">📷 카메라 켜기</button>
+            <button id="talkToAnnaBtn" class="primary-btn">🎙️ ANNA에게 말하기</button>
+            <button id="repeatAnnaBtn" class="ghost-btn">🔁 ANNA 다시 말하기</button>
+            <button id="endVideoLessonBtn" class="ghost-btn">📴 화상 회화 종료</button>
           </div>
         </section>
 
