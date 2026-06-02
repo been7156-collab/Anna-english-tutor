@@ -857,10 +857,22 @@ function queueCallListeningResume() {
   }, 120);
 }
 
+function isEmbeddedMobileBrowser() {
+  const ua = navigator.userAgent || '';
+  return /Telegram|Instagram|FBAN|FBAV|Line|KAKAOTALK|NAVER|wv|WebView/i.test(ua);
+}
+
+function voiceSupportHint() {
+  if (isEmbeddedMobileBrowser()) {
+    return '지금은 앱 안 브라우저(예: 텔레그램 내부 브라우저)라서 음성 인식이 잘 안 될 수 있어요. Safari나 Chrome에서 링크를 직접 열어 다시 시도해보세요.';
+  }
+  return '이 브라우저의 음성 인식 지원이 약할 수 있어요. Safari나 Chrome 최신 버전에서 다시 시도해보세요.';
+}
+
 function startSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    appendAssistant('이 브라우저에서는 음성 인식을 지원하지 않아요. Chrome 계열 브라우저에서 시도해보세요.');
+    appendAssistant(voiceSupportHint());
     return;
   }
   const recognition = new SpeechRecognition();
@@ -899,7 +911,7 @@ async function enableCamera() {
 
   try {
     if (!STATE.call.stream) {
-      STATE.call.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      STATE.call.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       userVideo.srcObject = STATE.call.stream;
     }
     userVideo.classList.add('active');
@@ -918,7 +930,7 @@ function startCallSpeechRecognition() {
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    appendAssistant('이 브라우저에서는 음성 인식을 지원하지 않아. Safari나 Chrome 최신 버전으로 해봐.');
+    appendAssistant(voiceSupportHint());
     return;
   }
 
@@ -934,6 +946,7 @@ function startCallSpeechRecognition() {
   updateCallStatus('듣는 중');
   updateAnnaSubtitle("I'm listening. Go on.");
   setAvatar('🎤');
+  setTutorMood('listening');
 
   recognition.onresult = async (event) => {
     const transcript = event.results[0][0].transcript.trim();
@@ -942,6 +955,7 @@ function startCallSpeechRecognition() {
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
+    setTutorMood('idle');
     await handleUserTurn(transcript, { autoSpeak: true, source: 'voice-call' });
   };
 
@@ -949,9 +963,13 @@ function startCallSpeechRecognition() {
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
+    const hint = ['not-allowed', 'service-not-allowed'].includes(event.error)
+      ? ` ${voiceSupportHint()}`
+      : '';
     updateAnnaSubtitle(`음성 인식 오류: ${event.error}`);
-    appendAssistant(`음성 인식 오류: ${event.error}`);
+    appendAssistant(`음성 인식 오류: ${event.error}.${hint}`);
     setAvatar('😊');
+    setTutorMood('idle');
   };
 
   recognition.onend = () => {
@@ -959,6 +977,7 @@ function startCallSpeechRecognition() {
     annaStage.classList.remove('call-listening');
     if (STATE.call.active) updateCallStatus('화상 회화 중');
     setAvatar('😊');
+    setTutorMood('idle');
   };
 
   recognition.start();
@@ -1003,31 +1022,51 @@ function updateAvatarStatus(text) {
 }
 
 function setTutorMood(mode) {
+  annaStage.classList.remove('mood-idle', 'mood-thinking', 'mood-listening', 'mood-speaking', 'call-speaking');
+  avatarFace.classList.remove('mood-idle', 'mood-thinking', 'mood-listening', 'mood-speaking');
+
   if (mode === 'speaking') {
     annaSpeakingBars.classList.remove('hidden');
-    annaStage.classList.add('call-active');
+    annaStage.classList.add('call-active', 'mood-speaking', 'call-speaking');
+    avatarFace.classList.add('mood-speaking');
     updateAvatarStatus('ANNA가 말하는 중');
     return;
   }
   if (mode === 'thinking') {
     annaSpeakingBars.classList.add('hidden');
+    annaStage.classList.add('mood-thinking');
+    avatarFace.classList.add('mood-thinking');
     updateAvatarStatus('ANNA가 생각하는 중');
     return;
   }
+  if (mode === 'listening') {
+    annaSpeakingBars.classList.add('hidden');
+    annaStage.classList.add('mood-listening');
+    avatarFace.classList.add('mood-listening');
+    updateAvatarStatus('ANNA가 듣는 중');
+    return;
+  }
   annaSpeakingBars.classList.add('hidden');
+  annaStage.classList.add('mood-idle');
+  avatarFace.classList.add('mood-idle');
   updateAvatarStatus(STATE.call.active ? '화상 회화 준비 완료' : 'AI 튜터 대기중');
 }
 
 function setAvatar(face) {
-  const img = avatarFace.querySelector('img');
-  if (!img) {
-    avatarFace.textContent = face;
+  avatarFace.classList.remove('avatar-thinking', 'avatar-speaking', 'avatar-listening');
+  annaStage.classList.remove('avatar-thinking', 'avatar-speaking', 'avatar-listening');
+  if (face === '🤔') {
+    avatarFace.classList.add('avatar-thinking');
+    annaStage.classList.add('avatar-thinking');
     return;
   }
-  const filters = {
-    '😊': 'none',
-    '🤔': 'saturate(0.9) brightness(0.95)',
-    '🎤': 'drop-shadow(0 0 8px rgba(113,209,255,.45))',
-  };
-  img.style.filter = filters[face] || 'none';
+  if (face === '🎤') {
+    avatarFace.classList.add('avatar-listening');
+    annaStage.classList.add('avatar-listening');
+    return;
+  }
+  if (face === '😊') {
+    avatarFace.classList.add('avatar-speaking');
+    annaStage.classList.add('avatar-speaking');
+  }
 }
