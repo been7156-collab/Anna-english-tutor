@@ -265,6 +265,8 @@ async function generateTutorReply(userText) {
 
 async function realAiReply(userText) {
   const isVoiceCall = STATE.call.active;
+  const model = pickReplyModel({ isVoiceCall });
+  const recentMessages = getRecentMessagesForReply({ isVoiceCall });
   const system = [
     'You are ANNA, a late-30s British English female tutor with a cool, calm, sharp style.',
     'The user dislikes AI-sounding phrasing and long analysis.',
@@ -293,7 +295,7 @@ async function realAiReply(userText) {
 
   const messages = [
     { role: 'system', content: system },
-    ...STATE.messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+    ...recentMessages,
     { role: 'user', content: voiceHint ? `${voiceHint}\n\nUser said: ${userText}` : userText }
   ];
 
@@ -304,9 +306,10 @@ async function realAiReply(userText) {
       'Authorization': `Bearer ${STATE.settings.apiKey}`,
     },
     body: JSON.stringify({
-      model: STATE.settings.model || 'gpt-4.1-mini',
+      model,
       temperature: 0.8,
       response_format: { type: 'json_object' },
+      max_tokens: isVoiceCall ? 90 : 220,
       messages,
     })
   });
@@ -340,8 +343,8 @@ async function proxyAiReply(userText) {
     theme: themeSelect.value,
     difficulty: difficultySelect.value,
     isVoiceCall,
-    recentMessages: STATE.messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-    model: STATE.settings.model || 'gpt-4.1-mini'
+    recentMessages: getRecentMessagesForReply({ isVoiceCall }),
+    model: pickReplyModel({ isVoiceCall })
   };
 
   const res = await fetch(endpoint, {
@@ -597,6 +600,21 @@ function sampleAnswerForTheme(theme) {
   return samples[theme] || 'Could you help me with this, please?';
 }
 
+function pickReplyModel({ isVoiceCall = false } = {}) {
+  const configured = String(STATE.settings.model || 'gpt-4.1-mini').trim();
+  if (isVoiceCall) {
+    return configured === 'gpt-4.1-mini' ? 'gpt-4.1-nano' : configured;
+  }
+  return configured || 'gpt-4.1-mini';
+}
+
+function getRecentMessagesForReply({ isVoiceCall = false } = {}) {
+  const historySize = isVoiceCall ? 4 : 10;
+  return STATE.messages
+    .slice(-historySize)
+    .map((m) => ({ role: m.role, content: m.content }));
+}
+
 function themeLabel(theme) {
   return {
     daily: '일상 대화',
@@ -784,12 +802,19 @@ function speakLastAssistant() {
 
 async function speakText(text) {
   const speechText = extractBestSpeechText(text);
-  if (STATE.settings.ttsMode === 'openai' && (STATE.settings.apiKey || getProxyBaseUrl())) {
+  const preferLowLatencyBrowserTts = STATE.call.active;
+  const canUseOpenAiTts = STATE.settings.ttsMode === 'openai' && (STATE.settings.apiKey || getProxyBaseUrl());
+
+  if (!preferLowLatencyBrowserTts && canUseOpenAiTts) {
     const played = await speakWithOpenAITts(speechText);
     if (played) return true;
   }
 
   if (!('speechSynthesis' in window)) {
+    if (canUseOpenAiTts) {
+      const played = await speakWithOpenAITts(speechText);
+      if (played) return true;
+    }
     appendAssistant('이 브라우저는 음성 읽기를 지원하지 않아요.');
     return false;
   }

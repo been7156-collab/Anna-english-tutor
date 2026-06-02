@@ -94,6 +94,7 @@ export default async function handler(req, res) {
       model,
       temperature: 0.8,
       response_format: { type: 'json_object' },
+      max_tokens: isVoiceCall ? 90 : 220,
       messages
     })
   });
