@@ -39,21 +39,21 @@ const STATE = {
 };
 
 const THEME_OPENERS = {
-  daily: 'Hi! Tell me something about your day.',
-  cafe: 'Hi! What would you like to order today?',
-  travel: 'Hello! How can I help you with your trip today?',
-  church: 'Hi! Could you introduce your church to me?',
-  worship: 'Hey! Tell me about today\'s worship rehearsal.',
-  pastoral: 'Hi pastor! How would you describe your ministry in English?'
+  daily: 'Alright — tell me about your day.',
+  cafe: 'Right, what would you like to order?',
+  travel: 'Okay, tell me what you need for your trip.',
+  church: 'Go on, then — tell me about your church.',
+  worship: 'Right — tell me about today\'s worship rehearsal.',
+  pastoral: 'How would you describe your ministry in English?'
 };
 
 const QUICK_GUIDES = {
-  hint: '힌트만 짧게 드릴게요. 먼저 쉬운 문장으로 말해보세요.',
-  answer: '바로 쓸 수 있는 자연스러운 예문을 하나 드릴게요.',
-  natural: '더 자연스럽게 들리도록 다듬어드릴게요.',
-  idiom: '이 상황에서 외국인이 자주 쓰는 표현을 알려드릴게요.',
-  grammar: '틀린 이유를 짧고 쉽게 설명해드릴게요.',
-  retry: '좋아요. 이번엔 조금 더 짧고 자연스럽게 다시 말해보세요.'
+  hint: '힌트만 줄게. 짧고 분명하게 말해봐.',
+  answer: '바로 쓸 수 있는 영국영어 예문 하나 줄게.',
+  natural: '더 자연스러운 영국영어 느낌으로 다듬어줄게.',
+  idiom: '이 상황에서 영국영어로 쓸 만한 표현을 줄게.',
+  grammar: '왜 고치는지 짧고 분명하게 설명해줄게.',
+  retry: '좋아. 이번엔 더 짧고 자연스럽게 다시 말해봐.'
 };
 
 applySettingsUI();
@@ -84,14 +84,14 @@ function wireEvents() {
 
 function seedWelcome() {
   appendAssistant(
-`안녕하세요! 저는 **ANNA 영어쌤**이에요 😊
+`안녕하세요. 저는 **ANNA**예요.
 
-이제는 더 자연스럽게 대화할게요.
-- 먼저 편하게 대화하기
+영국영어로, 너무 AI 같지 않게, 짧고 자연스럽게 가볼게요.
+- 먼저 대화부터 하기
 - 필요할 때만 짧게 교정하기
-- 막히면 바로 따라 말할 문장 주기
+- 더 자연스러운 영국식 표현으로 다듬기
 
-원하시면 위의 **📹 화상 회화 시작**으로 더 실제 대화처럼 연습할 수 있어요.`
+원하면 위의 **📹 카메라+회화 시작**으로 바로 연습해봐.`
   );
 }
 
@@ -101,7 +101,7 @@ function onQuickAction(kind) {
     appendAssistant(`예문: ${sampleAnswerForTheme(themeSelect.value)}`);
   }
   if (kind === 'idiom') {
-    appendAssistant('추천 표현: That makes sense. / Fair enough. / I see what you mean.');
+    appendAssistant('추천 표현: Fair enough. / That makes sense. / Go on, then.');
   }
 }
 
@@ -119,7 +119,7 @@ async function handleUserTurn(text, options = {}) {
   setTutorMood('thinking');
   if (STATE.call.active && options.source?.includes('voice')) {
     updateCallStatus('ANNA 답변 준비 중');
-    updateAnnaSubtitle('Okay — one moment.');
+    updateAnnaSubtitle('Right — give me a second.');
   }
   try {
     const reply = await generateTutorReply(text);
@@ -149,14 +149,14 @@ function startScenario() {
   const theme = themeSelect.value;
   STATE.scenarioPrompted = true;
   const opener = THEME_OPENERS[theme];
-  appendAssistant(`🎯 오늘의 테마: ${themeLabel(theme)}\n\n${opener}\n\n짧게 영어로 대답해보세요. 막히면 한국어로 물어보셔도 돼요.`);
+  appendAssistant(`🎯 오늘의 테마: ${themeLabel(theme)}\n\n${opener}\n\n짧게 영국영어 느낌으로 답해봐. 막히면 한국어로 물어봐도 돼.`);
   updateAnnaSubtitle(opener);
 }
 
 function runHelperPrompt(kind) {
   const text = messageInput.value.trim();
   if (!text) {
-    appendAssistant('먼저 아래 입력창에 문장을 적어주세요 🙂');
+    appendAssistant('먼저 아래 입력창에 문장을 적어줘 🙂');
     return;
   }
 
@@ -234,26 +234,29 @@ async function generateTutorReply(userText) {
 async function realAiReply(userText) {
   const isVoiceCall = STATE.call.active;
   const system = [
-    'You are ANNA, a warm native-speaker style English conversation partner for a Korean learner.',
+    'You are ANNA, a late-30s British English female tutor with a cool, calm, sharp style.',
     'The user dislikes AI-sounding phrasing and long analysis.',
-    'Sound like a real friendly native speaker in everyday conversation.',
+    'Always use British English spelling, vocabulary, rhythm, and phrasing.',
+    'Sound like a real modern British tutor on a video call: cool, steady, natural, and never cheesy.',
     'Lead with the natural conversational reply first, not a lesson.',
-    'Only correct briefly when needed, and keep the correction casual and short.',
+    'Only correct briefly when needed, and keep the correction crisp, casual, and short.',
     'If the user says they do not know, give one simple line they can copy and then keep the conversation moving.',
     'Use Korean only for very short support when helpful.',
+    'Prefer British English vocabulary such as holiday, flat, lift, queue, football, rubbish, takeaway, and trainers when natural.',
+    'Avoid over-enthusiastic American-style praise or filler. No exaggerated cheerfulness.',
     'If the user\'s English is incorrect, unnatural, or missing a better expression, you must clearly fill the JSON fields: correction, explanation, and answer.',
     'correction = what was wrong or awkward in the user\'s English, written briefly and clearly.',
     'explanation = a short Korean explanation of why it should change.',
     'answer = the improved English sentence the user can say next time.',
     'If the user\'s English is already good, keep correction/explanation empty and answer can be a slightly more natural version only if truly helpful.',
-    'For live voice conversation, sound like a real phone tutor: short turns, warm energy, natural filler phrases like "mm-hmm", "I see", or "got it" only when they fit naturally.',
+    'For live voice conversation, sound like a real British tutor: short turns, cool confidence, natural filler phrases like "right", "I see", "fair enough", or "go on" only when they fit naturally.',
     'For live voice conversation, prefer 1 to 2 short sentences in reply, usually under 18 words total unless a longer answer is truly necessary.',
     'When returning JSON, keep speakText especially concise and natural for audio.',
     'Return valid JSON with keys: reply, answer, correction, explanation, vocabulary, subtitle, speakText.'
   ].join(' ');
 
   const voiceHint = isVoiceCall
-    ? 'The user is speaking live in a call. Reply like a real tutor on a phone call: quick, warm, and easy to say back to.'
+    ? 'The user is speaking live in a call. Reply like a real British tutor on a phone call: quick, calm, and easy to say back to.'
     : '';
 
   const messages = [
@@ -285,7 +288,7 @@ async function realAiReply(userText) {
   const content = data.choices?.[0]?.message?.content || '{}';
   const parsed = safeJsonParse(content);
   return {
-    text: parsed.reply || 'Sure. Tell me a little more.',
+    text: parsed.reply || 'Right — tell me a bit more.',
     subtitle: parsed.subtitle || parsed.reply || '',
     speakText: parsed.speakText || parsed.answer || parsed.reply || '',
     feedback: {
@@ -324,7 +327,7 @@ async function proxyAiReply(userText) {
 
   const parsed = await res.json();
   return {
-    text: parsed.reply || 'Sure. Tell me a little more.',
+    text: parsed.reply || 'Right — tell me a bit more.',
     subtitle: parsed.subtitle || parsed.reply || '',
     speakText: parsed.speakText || parsed.answer || parsed.reply || '',
     feedback: {
@@ -345,13 +348,13 @@ async function demoReply(userText) {
   if (/^(i don't know|i dont know|모르겠|잘 모르겠)/i.test(lower) || /모르겠/.test(normalized)) {
     const answer = sampleAnswerForTheme(theme);
     return {
-      text: `No worries — you can just say, "${answer}"`,
+      text: `No problem — you can just say, "${answer}"`,
       subtitle: answer,
       speakText: answer,
       feedback: {
         answer,
         correction: '',
-        explanation: '모를 때는 먼저 짧은 문장 하나를 그대로 따라 말하면 됩니다.',
+        explanation: '막히면 이 한 문장을 그대로 따라 말하면 돼.',
         vocabulary: [],
       }
     };
@@ -367,7 +370,7 @@ async function demoReply(userText) {
       feedback: {
         answer: natural,
         correction: '',
-        explanation: '이 문장 그대로 말하시면 자연스럽습니다.',
+        explanation: '이 문장 그대로 말하면 자연스러워.',
         vocabulary: vocabForTheme(theme).slice(0, 3),
       }
     };
@@ -377,8 +380,8 @@ async function demoReply(userText) {
   const natural = makeMoreNatural(corrected, theme);
   const needsCorrection = corrected !== normalized || natural !== corrected;
   const partnerReply = conversationalFollowUp(natural, theme);
-  const correctionLine = needsCorrection ? `You could also say, "${natural}"` : '';
-  const explanation = needsCorrection ? '이렇게만 바꾸면 훨씬 자연스러워요.' : '';
+  const correctionLine = needsCorrection ? `In British English, you could say, "${natural}"` : '';
+  const explanation = needsCorrection ? '이렇게 바꾸면 영국영어로 훨씬 자연스러워.' : '';
 
   return {
     text: `${partnerReply}${correctionLine ? `\n\n${correctionLine}` : ''}`,
@@ -399,83 +402,83 @@ function conversationalFollowUp(natural, theme) {
   if (theme === 'daily') {
     if (/(went to church|church)/i.test(lower)) {
       return pickVariant(natural, [
-        'That sounds nice. What did you do at church?',
-        'Oh, nice. Was it for worship or a meeting?',
+        'Right. What did you do at church?',
+        'Was it for worship or a meeting, then?',
         'I see. Who did you go with?'
       ]);
     }
     if (/(met|friend)/i.test(lower)) {
       return pickVariant(natural, [
-        'Nice. What did you and your friend do?',
-        'Oh, that sounds good. Where did you meet?',
-        'I see. Was it fun?'
+        'Right. What did you and your friend get up to?',
+        'Where did you meet, then?',
+        'Fair enough. Was it good fun?'
       ]);
     }
     if (/(busy|tired)/i.test(lower)) {
       return pickVariant(natural, [
-        'Sounds like a long day. What made it busy?',
-        'I got you. Are you resting now?',
-        'Oh, really? What kept you busy?'
+        'Sounds like a long day. What made it so busy?',
+        'Right. Are you getting a bit of rest now?',
+        'What kept you busy, then?'
       ]);
     }
     return pickVariant(natural, [
-      'Mm-hmm, nice. What did you do after that?',
-      'Oh, I see. Tell me a little more.',
-      'That sounds good. What happened next?'
+      'Right. What happened after that?',
+      'Go on, then — tell me a bit more.',
+      'Alright. What happened next?'
     ]);
   }
 
   if (theme === 'cafe') {
     if (lower.includes('americano')) {
       return pickVariant(natural, [
-        'Nice choice. Anything else for you?',
-        'Sure. Would you like that hot or iced?',
-        'Great. Do you want anything to eat too?'
+        'Right. Anything else for you?',
+        'Would you like that hot or iced?',
+        'Do you want anything to eat as well?'
       ]);
     }
     return pickVariant(natural, [
-      'Okay, got it. What would you like next?',
-      'Sure. Is that for here or to go?',
-      'Of course. Anything else today?'
+      'Alright. What would you like next?',
+      'Is that for here or takeaway?',
+      'Anything else today?'
     ]);
   }
 
   if (theme === 'travel') {
     return pickVariant(natural, [
-      'Got it. When is your flight?',
-      'Okay. Which city are you flying to?',
-      'I see. Do you already have your boarding pass?'
+      'Right. When is your flight?',
+      'Which city are you flying to, then?',
+      'Do you already have your boarding pass?'
     ]);
   }
 
   if (theme === 'church') {
     return pickVariant(natural, [
-      'That sounds lovely. What is your church known for?',
-      'I see. What kind of community does your church have?',
-      'Nice. What do people usually experience when they visit?'
+      'Right. What is your church known for?',
+      'What sort of community does your church have?',
+      'What do people usually notice when they visit?'
     ]);
   }
 
   if (theme === 'worship') {
     return pickVariant(natural, [
-      'Nice. What songs are you doing today?',
-      'That sounds good. Who is leading worship today?',
-      'I see. Did you rehearse already?'
+      'Right. What songs are you doing today?',
+      'Who is leading worship today, then?',
+      'Did you rehearse already?'
     ]);
   }
 
   if (theme === 'pastoral') {
     return pickVariant(natural, [
-      'I see. What part of ministry do you enjoy most?',
-      'That is meaningful. Who are you serving most these days?',
-      'Got it. What has been on your heart lately in ministry?'
+      'What part of ministry do you enjoy most?',
+      'Who are you serving most these days?',
+      'What has been on your heart lately in ministry?'
     ]);
   }
 
   return pickVariant(natural, [
-    'Mm-hmm. Tell me a little more.',
-    'I see. What happened next?',
-    'That sounds interesting. Go on.'
+    'Go on, then.',
+    'Right. What happened next?',
+    'Tell me a bit more.'
   ]);
 }
 
@@ -493,7 +496,7 @@ function translateKoreanHeuristically(text, theme) {
     [/찬양팀.*연습/, 'We have worship team rehearsal today.'],
     [/처음.*교회/, 'This is my first time visiting this church.'],
     [/기도.*부탁/, 'Could you pray for me?'],
-    [/잘 지냈/, 'I\'ve been doing well. How about you?'],
+    [/잘 지냈/, 'I\'ve been alright. How about you?'],
     [/오늘.*바빴/, 'I was pretty busy today.'],
   ];
   for (const [pattern, out] of rules) {
@@ -501,10 +504,10 @@ function translateKoreanHeuristically(text, theme) {
   }
 
   const fallbacks = {
-    daily: 'I had a pretty normal day, but it was good.',
+    daily: 'My day was fairly ordinary, but quite good.',
     cafe: "I'd like a drink, please.",
-    travel: 'I need some help with my flight.',
-    church: 'Let me tell you a little about our church.',
+    travel: 'I need a bit of help with my flight.',
+    church: 'Let me tell you a bit about our church.',
     worship: 'We are getting ready for worship today.',
     pastoral: 'I serve people through ministry and prayer.'
   };
@@ -527,6 +530,12 @@ function correctEnglishHeuristically(text) {
 function makeMoreNatural(text, theme) {
   let out = text;
   if (theme === 'cafe' && /Americano/i.test(out) && !/please/i.test(out)) out = `${out.replace(/\.$/, '')}, please.`;
+  out = out.replace(/\bvacation\b/gi, 'holiday');
+  out = out.replace(/\bapartment\b/gi, 'flat');
+  out = out.replace(/\belevator\b/gi, 'lift');
+  out = out.replace(/\bsoccer\b/gi, 'football');
+  out = out.replace(/\btakeout\b/gi, 'takeaway');
+  out = out.replace(/\bsneakers\b/gi, 'trainers');
   if (theme === 'church') out = out.replace('I am a pastor', 'I serve as a pastor at our church');
   if (theme === 'worship') out = out.replace('practice', 'rehearsal');
   return out;
@@ -534,10 +543,10 @@ function makeMoreNatural(text, theme) {
 
 function vocabForTheme(theme) {
   const map = {
-    daily: ['pretty good', 'not bad', 'how about you?'],
-    cafe: ["I'd like...", 'Anything else?', 'For here or to go?'],
-    travel: ['check in', 'boarding pass', 'carry-on'],
-    church: ['fellowship', 'worship service', 'small group'],
+    daily: ['quite nice', 'not too bad', 'how about you?'],
+    cafe: ["I'd like...", 'Anything else?', 'Eat in or takeaway?'],
+    travel: ['check-in', 'boarding pass', 'hand luggage'],
+    church: ['fellowship', 'Sunday service', 'small group'],
     worship: ['set list', 'rehearsal', 'key change'],
     pastoral: ['ministry', 'encourage', 'pray for'],
   };
@@ -546,14 +555,14 @@ function vocabForTheme(theme) {
 
 function sampleAnswerForTheme(theme) {
   const samples = {
-    daily: 'I had a busy day, but I am doing well.',
+    daily: "I had a busy day, but I'm doing alright.",
     cafe: "I'd like an iced Americano, please.",
     travel: 'I need to check in for my flight.',
-    church: 'Our church is a warm community that loves worship and fellowship.',
+    church: 'Our church is a warm community that values worship and fellowship.',
     worship: 'Today\'s set starts in G, and we move up at the end.',
     pastoral: 'I serve people through preaching, prayer, and pastoral care.',
   };
-  return samples[theme] || 'Could you help me with this?';
+  return samples[theme] || 'Could you help me with this, please?';
 }
 
 function themeLabel(theme) {
@@ -595,7 +604,7 @@ function enableDemoMode() {
   apiKeyInput.value = '';
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
-  appendAssistant('데모 모드로 전환했어요. 짧고 자연스럽게 대화하는 흐름 위주로 보여드릴게요.');
+  appendAssistant('데모 모드로 전환했어. 영국영어 톤으로 짧고 자연스럽게 보여줄게.');
 }
 
 function loadSettings() {
@@ -676,7 +685,7 @@ function escapeHtml(str) {
 }
 
 function detectSpeechLang(text) {
-  return /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text) ? 'ko-KR' : 'en-US';
+  return /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text) ? 'ko-KR' : 'en-GB';
 }
 
 function primeVoices() {
@@ -713,9 +722,9 @@ function stripForSpeech(text) {
 
 function pickBestVoice(lang) {
   const voices = STATE.voices?.length ? STATE.voices : (window.speechSynthesis?.getVoices?.() || []);
-  const lowerLang = (lang || 'en-US').toLowerCase();
+  const lowerLang = (lang || 'en-GB').toLowerCase();
   const preferredNames = lowerLang.startsWith('en')
-    ? ['samantha', 'ava', 'allison', 'siri', 'google us english', 'serena', 'karen', 'moira']
+    ? ['daniel', 'serena', 'kate', 'oliver', 'arthur', 'google uk english female', 'google british english', 'siri']
     : ['yuna', 'sora', 'siri', 'google 한국의', 'google korean'];
 
   const matching = voices.filter((voice) => (voice.lang || '').toLowerCase().startsWith(lowerLang.slice(0, 2)));
@@ -855,7 +864,7 @@ function startSpeechRecognition() {
     return;
   }
   const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
+  recognition.lang = 'en-GB';
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
   appendAssistant('🎤 듣고 있어요... 영어로 말해보세요.');
@@ -877,9 +886,9 @@ async function startVideoLesson() {
   updateCallStatus('화상 회화 중');
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
-  updateAnnaSubtitle('Hi! Let\'s talk naturally. You can start with one short sentence.');
-  appendAssistant('📹 화상 회화 모드를 시작했어요. 실제 통화처럼 짧게 주고받아볼게요. 먼저 한 문장만 영어로 말해보세요. 막히면 “I don\'t know”라고 해도 제가 이어서 도와드릴게요.');
-  speakText('Hi! Let\'s talk naturally. You can start with one short sentence.');
+  updateAnnaSubtitle('Right — start with one short sentence.');
+  appendAssistant('📹 화상 회화 모드를 시작했어. 영국영어 느낌으로 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.');
+  speakText('Right — start with one short sentence.');
 }
 
 async function enableCamera() {
@@ -896,7 +905,7 @@ async function enableCamera() {
     userVideo.classList.add('active');
     selfVideoFallback.classList.add('hidden');
     updateAvatarStatus('카메라 연결됨');
-    appendAssistant('📷 카메라를 켰어요. 이제 ANNA와 마주 보고 연습하는 느낌으로 말해보세요.');
+    appendAssistant('📷 카메라 켰어. 이제 ANNA랑 마주 보고 짧게 말해봐.');
   } catch (err) {
     appendAssistant(`카메라를 켜지 못했어요: ${err.message}`);
   }
@@ -909,7 +918,7 @@ function startCallSpeechRecognition() {
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    appendAssistant('이 브라우저에서는 음성 인식을 지원하지 않아요. Safari/Chrome 최신 버전에서 시도해보세요.');
+    appendAssistant('이 브라우저에서는 음성 인식을 지원하지 않아. Safari나 Chrome 최신 버전으로 해봐.');
     return;
   }
 
@@ -918,12 +927,12 @@ function startCallSpeechRecognition() {
   const recognition = new SpeechRecognition();
   STATE.call.recognition = recognition;
   STATE.call.listening = true;
-  recognition.lang = 'en-US';
+  recognition.lang = 'en-GB';
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
   annaStage.classList.add('call-listening');
   updateCallStatus('듣는 중');
-  updateAnnaSubtitle('I am listening... Go ahead.');
+  updateAnnaSubtitle("I'm listening. Go on.");
   setAvatar('🎤');
 
   recognition.onresult = async (event) => {
