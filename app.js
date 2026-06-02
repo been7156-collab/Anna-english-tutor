@@ -79,13 +79,12 @@ function seedWelcome() {
   appendAssistant(
 `안녕하세요! 저는 **ANNA 영어쌤**이에요 😊
 
-이제는 너무 길게 분석하지 않고, 더 실제 대화처럼 도와드릴게요.
-- 외국인이 말하듯 자연스럽게 대답
-- 막히면 힌트 주기
-- "I don't know"라고 해도 이어서 도와주기
-- 틀린 영어는 짧게 교정
+이제는 더 자연스럽게 대화할게요.
+- 먼저 편하게 대화하기
+- 필요할 때만 짧게 교정하기
+- 막히면 바로 따라 말할 문장 주기
 
-원하시면 위의 **📹 화상 회화 시작**으로 더 대화식으로 연습하실 수 있어요.`
+원하시면 위의 **📹 화상 회화 시작**으로 더 실제 대화처럼 연습할 수 있어요.`
   );
 }
 
@@ -205,12 +204,13 @@ async function generateTutorReply(userText) {
 
 async function realAiReply(userText) {
   const system = [
-    'You are ANNA, a warm English conversation teacher for a Korean learner.',
-    'The user wants a natural conversation, not long analysis.',
-    'Reply like a real conversation partner first.',
-    'If the user makes an English mistake, gently correct it briefly.',
-    'If the user says they do not know, give a simple answer they can copy plus one short hint.',
-    'Keep Korean explanations short and only when helpful.',
+    'You are ANNA, a warm native-speaker style English conversation partner for a Korean learner.',
+    'The user dislikes AI-sounding phrasing and long analysis.',
+    'Sound like a real friendly native speaker in everyday conversation.',
+    'Lead with the natural conversational reply first, not a lesson.',
+    'Only correct briefly when needed, and keep the correction casual and short.',
+    'If the user says they do not know, give one simple line they can copy and then keep the conversation moving.',
+    'Use Korean only for very short support when helpful.',
     'Return valid JSON with keys: reply, answer, correction, explanation, vocabulary, subtitle, speakText.'
   ].join(' ');
 
@@ -264,7 +264,7 @@ async function demoReply(userText) {
   if (/^(i don't know|i dont know|모르겠|잘 모르겠)/i.test(lower) || /모르겠/.test(normalized)) {
     const answer = sampleAnswerForTheme(theme);
     return {
-      text: `That's okay. You can say: "${answer}"\n\n한 번 따라 말해보실래요?`,
+      text: `No worries — you can just say, "${answer}"`,
       subtitle: answer,
       speakText: answer,
       feedback: {
@@ -280,7 +280,7 @@ async function demoReply(userText) {
     const answer = translateKoreanHeuristically(normalized, theme);
     const natural = makeMoreNatural(answer, theme);
     return {
-      text: `${natural}\n\nIf you want, I can make it softer or more friendly.`,
+      text: `${natural}`,
       subtitle: natural,
       speakText: natural,
       feedback: {
@@ -296,8 +296,8 @@ async function demoReply(userText) {
   const natural = makeMoreNatural(corrected, theme);
   const needsCorrection = corrected !== normalized || natural !== corrected;
   const partnerReply = conversationalFollowUp(natural, theme);
-  const correctionLine = needsCorrection ? `A more natural way to say it is: "${natural}"` : '';
-  const explanation = needsCorrection ? '짧게만 고치면 더 자연스럽게 들립니다.' : '';
+  const correctionLine = needsCorrection ? `You could also say, "${natural}"` : '';
+  const explanation = needsCorrection ? '이렇게만 바꾸면 훨씬 자연스러워요.' : '';
 
   return {
     text: `${partnerReply}${correctionLine ? `\n\n${correctionLine}` : ''}`,
