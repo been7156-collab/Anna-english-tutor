@@ -69,9 +69,9 @@ function wireEvents() {
   document.getElementById('correctMyEnglishBtn').addEventListener('click', () => runHelperPrompt('correct'));
   document.getElementById('voiceBtn').addEventListener('click', startSpeechRecognition);
   document.getElementById('speakLastBtn').addEventListener('click', speakLastAssistant);
-  document.getElementById('startVideoLessonBtn').addEventListener('click', startVideoLesson);
+  document.getElementById('startVideoLessonBtn').addEventListener('click', startVideoConversation);
   document.getElementById('enableCameraBtn').addEventListener('click', enableCamera);
-  document.getElementById('talkToAnnaBtn').addEventListener('click', startCallSpeechRecognition);
+  document.getElementById('talkToAnnaBtn').addEventListener('click', startVideoConversation);
   document.getElementById('repeatAnnaBtn').addEventListener('click', speakLastAssistant);
   document.getElementById('endVideoLessonBtn').addEventListener('click', endVideoLesson);
   closeFeedbackBtn.addEventListener('click', () => feedbackPanel.classList.add('hidden'));
@@ -158,6 +158,18 @@ function runHelperPrompt(kind) {
 
   messageInput.value = '';
   handleUserTurn(payloadMap[kind], { autoSpeak: false, source: kind });
+}
+
+async function startVideoConversation() {
+  if (!STATE.call.active) {
+    await startVideoLesson();
+  }
+
+  if (!STATE.call.stream) {
+    await enableCamera();
+  }
+
+  startCallSpeechRecognition();
 }
 
 function appendUser(text) {
@@ -620,10 +632,12 @@ function startSpeechRecognition() {
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
   appendAssistant('🎤 듣고 있어요... 영어로 말해보세요.');
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript.trim();
     messageInput.value = transcript;
     appendAssistant(`들린 문장: ${transcript}`);
+    await handleUserTurn(transcript, { autoSpeak: STATE.call.active, source: 'voice' });
+    messageInput.value = '';
   };
   recognition.onerror = (event) => {
     appendAssistant(`음성 인식 오류: ${event.error}`);
