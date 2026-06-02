@@ -33,6 +33,7 @@ const STATE = {
     stream: null,
     listening: false,
     recognition: null,
+    resumeTimer: null,
   },
 };
 
@@ -115,6 +116,10 @@ async function handleUserTurn(text, options = {}) {
   appendUser(text);
   setAvatar('🤔');
   setTutorMood('thinking');
+  if (STATE.call.active && options.source?.includes('voice')) {
+    updateCallStatus('ANNA 답변 준비 중');
+    updateAnnaSubtitle('Okay — one moment.');
+  }
   try {
     const reply = await generateTutorReply(text);
     appendAssistant(reply.text);
@@ -125,7 +130,10 @@ async function handleUserTurn(text, options = {}) {
       clearFeedback();
     }
     if (options.autoSpeak) {
-      speakText(reply.speakText || reply.text);
+      await speakText(reply.speakText || reply.text);
+    }
+    if (STATE.call.active && options.source === 'voice-call') {
+      queueCallListeningResume();
     }
   } catch (err) {
     appendAssistant(`오류가 있었어요: ${err.message}`);
@@ -429,7 +437,7 @@ function saveSettingsFromUI() {
     model: modelInput.value.trim() || 'gpt-4.1-mini',
     ttsMode: ttsModeSelect.value || 'browser',
     ttsModel: ttsModelInput.value.trim() || 'gpt-4o-mini-tts',
-    ttsVoice: ttsVoiceInput.value.trim() || 'nova',
+    ttsVoice: ttsVoiceInput.value.trim() || 'shimmer',
   };
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
@@ -454,7 +462,7 @@ function loadSettings() {
       model: 'gpt-4.1-mini',
       ttsMode: 'browser',
       ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'nova'
+      ttsVoice: 'shimmer'
     };
   } catch {
     return {
@@ -463,7 +471,7 @@ function loadSettings() {
       model: 'gpt-4.1-mini',
       ttsMode: 'browser',
       ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'nova'
+      ttsVoice: 'shimmer'
     };
   }
 }
@@ -474,7 +482,7 @@ function applySettingsUI() {
   modelInput.value = STATE.settings.model || 'gpt-4.1-mini';
   ttsModeSelect.value = STATE.settings.ttsMode || 'browser';
   ttsModelInput.value = STATE.settings.ttsModel || 'gpt-4o-mini-tts';
-  ttsVoiceInput.value = STATE.settings.ttsVoice || 'nova';
+  ttsVoiceInput.value = STATE.settings.ttsVoice || 'shimmer';
   updateModeBadge();
 }
 
@@ -560,25 +568,38 @@ async function speakText(text) {
   const speechText = extractBestSpeechText(text);
   if (STATE.settings.ttsMode === 'openai' && STATE.settings.apiKey) {
     const played = await speakWithOpenAITts(speechText);
-    if (played) return;
+    if (played) return true;
   }
 
   if (!('speechSynthesis' in window)) {
     appendAssistant('이 브라우저는 음성 읽기를 지원하지 않아요.');
-    return;
+    return false;
   }
 
   const lang = detectSpeechLang(speechText);
   const utterance = new SpeechSynthesisUtterance(speechText);
   utterance.lang = lang;
   utterance.voice = pickBestVoice(lang);
-  utterance.rate = lang.startsWith('en') ? 0.94 : 0.98;
+  utterance.rate = lang.startsWith('en') ? 1.02 : 1;
   utterance.pitch = lang.startsWith('en') ? 1.02 : 1;
-  utterance.onstart = () => setTutorMood('speaking');
-  utterance.onend = () => setTutorMood('idle');
-  utterance.onerror = () => setTutorMood('idle');
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utterance);
+  return new Promise((resolve) => {
+    utterance.onstart = () => {
+      setTutorMood('speaking');
+      if (STATE.call.active) updateCallStatus('ANNA 답변 중');
+    };
+    utterance.onend = () => {
+      setTutorMood('idle');
+      if (STATE.call.active) updateCallStatus('화상 회화 중');
+      resolve(true);
+    };
+    utterance.onerror = () => {
+      setTutorMood('idle');
+      if (STATE.call.active) updateCallStatus('화상 회화 중');
+      resolve(false);
+    };
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
+  });
 }
 
 async function speakWithOpenAITts(text) {
@@ -592,7 +613,7 @@ async function speakWithOpenAITts(text) {
       },
       body: JSON.stringify({
         model: STATE.settings.ttsModel || 'gpt-4o-mini-tts',
-        voice: STATE.settings.ttsVoice || 'nova',
+        voice: STATE.settings.ttsVoice || 'shimmer',
         input: text,
         format: 'mp3'
       })
@@ -605,20 +626,46 @@ async function speakWithOpenAITts(text) {
     const blob = await res.blob();
     const audioUrl = URL.createObjectURL(blob);
     const audio = new Audio(audioUrl);
-    audio.onplay = () => setTutorMood('speaking');
-    audio.onended = () => {
-      setTutorMood('idle');
-      URL.revokeObjectURL(audioUrl);
-    };
-    audio.onerror = () => {
-      setTutorMood('idle');
-      URL.revokeObjectURL(audioUrl);
-    };
-    await audio.play();
+    await new Promise((resolve) => {
+      audio.onplay = () => {
+        setTutorMood('speaking');
+        if (STATE.call.active) updateCallStatus('ANNA 답변 중');
+      };
+      audio.onended = () => {
+        setTutorMood('idle');
+        if (STATE.call.active) updateCallStatus('화상 회화 중');
+        URL.revokeObjectURL(audioUrl);
+        resolve(true);
+      };
+      audio.onerror = () => {
+        setTutorMood('idle');
+        if (STATE.call.active) updateCallStatus('화상 회화 중');
+        URL.revokeObjectURL(audioUrl);
+        resolve(false);
+      };
+      audio.play().catch(() => {
+        setTutorMood('idle');
+        if (STATE.call.active) updateCallStatus('화상 회화 중');
+        URL.revokeObjectURL(audioUrl);
+        resolve(false);
+      });
+    });
     return true;
   } catch {
     return false;
   }
+}
+
+function queueCallListeningResume() {
+  if (!STATE.call.active) return;
+  if (STATE.call.resumeTimer) {
+    clearTimeout(STATE.call.resumeTimer);
+  }
+  STATE.call.resumeTimer = setTimeout(() => {
+    STATE.call.resumeTimer = null;
+    if (!STATE.call.active || STATE.call.listening) return;
+    startCallSpeechRecognition();
+  }, 250);
 }
 
 function startSpeechRecognition() {
@@ -729,6 +776,10 @@ function startCallSpeechRecognition() {
 }
 
 function endVideoLesson() {
+  if (STATE.call.resumeTimer) {
+    clearTimeout(STATE.call.resumeTimer);
+    STATE.call.resumeTimer = null;
+  }
   if (STATE.call.recognition) {
     try { STATE.call.recognition.stop(); } catch {}
     STATE.call.recognition = null;
