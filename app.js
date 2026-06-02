@@ -584,7 +584,7 @@ function saveSettingsFromUI() {
     model: modelInput.value.trim() || 'gpt-4.1-mini',
     ttsMode: ttsModeSelect.value || 'browser',
     ttsModel: ttsModelInput.value.trim() || 'gpt-4o-mini-tts',
-    ttsVoice: ttsVoiceInput.value.trim() || 'shimmer',
+    ttsVoice: ttsVoiceInput.value.trim() || 'nova',
   };
   localStorage.setItem('englishTutorSettings', JSON.stringify(STATE.settings));
   updateModeBadge();
@@ -616,7 +616,7 @@ function loadSettings() {
       model: 'gpt-4.1-mini',
       ttsMode: 'browser',
       ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'shimmer'
+      ttsVoice: 'nova'
     };
   } catch {
     return {
@@ -626,7 +626,7 @@ function loadSettings() {
       model: 'gpt-4.1-mini',
       ttsMode: 'browser',
       ttsModel: 'gpt-4o-mini-tts',
-      ttsVoice: 'shimmer'
+      ttsVoice: 'nova'
     };
   }
 }
@@ -638,7 +638,7 @@ function applySettingsUI() {
   modelInput.value = STATE.settings.model || 'gpt-4.1-mini';
   ttsModeSelect.value = STATE.settings.ttsMode || 'browser';
   ttsModelInput.value = STATE.settings.ttsModel || 'gpt-4o-mini-tts';
-  ttsVoiceInput.value = STATE.settings.ttsVoice || 'shimmer';
+  ttsVoiceInput.value = STATE.settings.ttsVoice || 'nova';
   updateModeBadge();
 }
 
@@ -724,16 +724,21 @@ function pickBestVoice(lang) {
   const voices = STATE.voices?.length ? STATE.voices : (window.speechSynthesis?.getVoices?.() || []);
   const lowerLang = (lang || 'en-GB').toLowerCase();
   const preferredNames = lowerLang.startsWith('en')
-    ? ['daniel', 'serena', 'kate', 'oliver', 'arthur', 'google uk english female', 'google british english', 'siri']
+    ? ['samantha', 'ava', 'allison', 'serena', 'karen', 'moira', 'kate', 'siri female', 'google uk english female', 'google british english female', 'female']
     : ['yuna', 'sora', 'siri', 'google 한국의', 'google korean'];
+  const avoidNames = lowerLang.startsWith('en')
+    ? ['daniel', 'oliver', 'arthur', 'fred', 'jorge', 'male']
+    : [];
 
   const matching = voices.filter((voice) => (voice.lang || '').toLowerCase().startsWith(lowerLang.slice(0, 2)));
+  const filtered = matching.filter((voice) => !avoidNames.some((name) => (voice.name || '').toLowerCase().includes(name)));
   for (const name of preferredNames) {
-    const found = matching.find((voice) => (voice.name || '').toLowerCase().includes(name));
+    const found = filtered.find((voice) => (voice.name || '').toLowerCase().includes(name))
+      || matching.find((voice) => (voice.name || '').toLowerCase().includes(name));
     if (found) return found;
   }
 
-  return matching[0] || voices[0] || null;
+  return filtered[0] || matching[0] || voices[0] || null;
 }
 
 function speakLastAssistant() {
@@ -757,8 +762,8 @@ async function speakText(text) {
   const utterance = new SpeechSynthesisUtterance(speechText);
   utterance.lang = lang;
   utterance.voice = pickBestVoice(lang);
-  utterance.rate = lang.startsWith('en') ? 1.02 : 1;
-  utterance.pitch = lang.startsWith('en') ? 1.02 : 1;
+  utterance.rate = lang.startsWith('en') ? 0.95 : 1;
+  utterance.pitch = lang.startsWith('en') ? 1.04 : 1;
   return new Promise((resolve) => {
     utterance.onstart = () => {
       setTutorMood('speaking');

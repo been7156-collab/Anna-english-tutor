@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ANNA 영어쌤</title>
-    <link rel="stylesheet" href="./styles.css?v=20260602c" />
+    <link rel="stylesheet" href="./styles.css?v=20260602d" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,19 +12,9 @@
         <div class="brand-card">
           <div class="avatar-wrap">
             <div class="avatar-face mood-idle" id="avatarFace" aria-label="ANNA 튜터 아바타">
-              <div class="anna-portrait anna-portrait--sidebar" aria-hidden="true">
-                <div class="portrait-glow"></div>
-                <div class="portrait-bust"></div>
-                <div class="portrait-neck"></div>
-                <div class="portrait-head">
-                  <div class="portrait-hair-back"></div>
-                  <div class="portrait-face-base"></div>
-                  <div class="portrait-fringe"></div>
-                  <div class="portrait-brows"><span></span><span></span></div>
-                  <div class="portrait-eyes"><span></span><span></span></div>
-                  <div class="portrait-nose"></div>
-                  <div class="portrait-mouth"></div>
-                </div>
+              <div class="anna-photo-shell anna-photo-shell--sidebar" aria-hidden="true">
+                <img class="anna-photo" src="./assets/anna-real-ai.jpg" alt="실제 사람처럼 보이는 ANNA AI 튜터" />
+                <div class="anna-photo-overlay"></div>
               </div>
             </div>
             <div class="avatar-status"><span class="pulse"></span><span id="avatarStatusText">AI 튜터 대기중</span></div>
@@ -101,7 +91,7 @@
           </label>
           <label>
             음성 이름
-            <input id="ttsVoiceInput" type="text" placeholder="shimmer / nova / alloy" value="shimmer" />
+            <input id="ttsVoiceInput" type="text" placeholder="nova / shimmer / alloy" value="nova" />
           </label>
           <div class="settings-actions">
             <button id="saveSettingsBtn">설정 저장</button>
@@ -138,19 +128,9 @@
           <div class="call-grid">
             <div class="call-card anna-card">
               <div class="call-screen anna-screen mood-idle" id="annaStage">
-                <div class="anna-portrait anna-portrait--call" aria-label="ANNA 화상 아바타">
-                  <div class="portrait-glow"></div>
-                  <div class="portrait-bust"></div>
-                  <div class="portrait-neck"></div>
-                  <div class="portrait-head">
-                    <div class="portrait-hair-back"></div>
-                    <div class="portrait-face-base"></div>
-                    <div class="portrait-fringe"></div>
-                    <div class="portrait-brows"><span></span><span></span></div>
-                    <div class="portrait-eyes"><span></span><span></span></div>
-                    <div class="portrait-nose"></div>
-                    <div class="portrait-mouth"></div>
-                  </div>
+                <div class="anna-photo-shell anna-photo-shell--call" aria-label="ANNA 화상 아바타">
+                  <img class="anna-photo" src="./assets/anna-real-ai.jpg" alt="실제 사람처럼 보이는 ANNA AI 튜터" />
+                  <div class="anna-photo-overlay"></div>
                 </div>
                 <div class="anna-speaking-bars hidden" id="annaSpeakingBars">
                   <span></span><span></span><span></span><span></span>
@@ -211,6 +191,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260602c"></script>
+    <script src="./app.js?v=20260602d"></script>
   </body>
 </html>
