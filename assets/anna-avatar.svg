@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="48" y1="40" x2="470" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6FD3FF"/>
+      <stop offset="1" stop-color="#86F5C2"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="180" y1="90" x2="332" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3A2A4A"/>
+      <stop offset="1" stop-color="#21192D"/>
+    </linearGradient>
+    <linearGradient id="blazer" x1="160" y1="340" x2="370" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#305E9B"/>
+      <stop offset="1" stop-color="#16355F"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="120" fill="url(#bg)"/>
+  <circle cx="256" cy="212" r="118" fill="#F7D7C3"/>
+  <path d="M140 207C140 130 186 84 256 84C326 84 372 136 372 213V260H346V218C346 157 314 117 256 117C198 117 166 157 166 218V260H140V207Z" fill="url(#hair)"/>
+  <path d="M168 195C178 135 217 102 256 102C295 102 334 135 344 195C332 184 315 177 298 177H214C197 177 180 184 168 195Z" fill="#4D3A60" fill-opacity="0.35"/>
+  <ellipse cx="212" cy="220" rx="12" ry="14" fill="#2A2730"/>
+  <ellipse cx="300" cy="220" rx="12" ry="14" fill="#2A2730"/>
+  <path d="M232 274C245 286 267 286 280 274" stroke="#AF5E67" stroke-width="10" stroke-linecap="round"/>
+  <path d="M248 235C248 248 247 257 243 266" stroke="#D59E8D" stroke-width="7" stroke-linecap="round"/>
+  <path d="M188 190C205 178 224 174 242 174" stroke="#2A2730" stroke-width="8" stroke-linecap="round"/>
+  <path d="M270 174C288 174 307 178 324 190" stroke="#2A2730" stroke-width="8" stroke-linecap="round"/>
+  <path d="M173 288C190 330 221 354 256 354C291 354 322 330 339 288" fill="#F4C9B3"/>
+  <path d="M132 466C140 378 190 332 256 332C322 332 372 378 380 466" fill="url(#blazer)"/>
+  <path d="M204 338L256 394L308 338C327 349 342 363 354 383L290 466H222L158 383C170 363 185 349 204 338Z" fill="#F9FAFC"/>
+  <path d="M236 360H276L263 392H249L236 360Z" fill="#72D6FF"/>
+  <circle cx="392" cy="118" r="42" fill="rgba(255,255,255,0.22)"/>
+  <path d="M385 102H398C404 102 409 107 409 113V126C409 132 404 137 398 137H385V102Z" fill="#FFFFFF" fill-opacity="0.85"/>
+  <path d="M381 117H400" stroke="#59B7FF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M390 108V126" stroke="#59B7FF" stroke-width="8" stroke-linecap="round"/>
+  <text x="256" y="448" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="34" fill="#ECF7FF">ANNA</text>
+</svg>

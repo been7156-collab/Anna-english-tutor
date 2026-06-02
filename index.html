@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ANNA 영어쌤</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-card">
+          <div class="avatar-wrap">
+            <div class="avatar-face" id="avatarFace">
+              <img src="./assets/anna-avatar.svg" alt="ANNA 튜터 아바타" class="avatar-image" />
+            </div>
+            <div class="avatar-status"><span class="pulse"></span> AI 튜터 대기중</div>
+          </div>
+          <h1>ANNA 영어쌤</h1>
+          <p class="muted">한국어로 물어봐도 설명해주고, 영어로 답하면 고쳐주는 데일리 회화 튜터</p>
+        </div>
+
+        <section class="panel">
+          <h2>오늘의 모드</h2>
+          <label>
+            상황 테마
+            <select id="themeSelect">
+              <option value="daily">일상 대화</option>
+              <option value="cafe">카페 주문</option>
+              <option value="travel">여행 / 공항</option>
+              <option value="church">교회 소개</option>
+              <option value="worship">찬양팀 / 예배</option>
+              <option value="pastoral">목회 / 교제</option>
+            </select>
+          </label>
+          <label>
+            연습 스타일
+            <select id="difficultySelect">
+              <option value="gentle">부드럽게</option>
+              <option value="coach">코치처럼</option>
+              <option value="strict">엄격하게</option>
+            </select>
+          </label>
+          <button id="startScenarioBtn" class="primary-btn full">오늘의 대화 시작</button>
+        </section>
+
+        <section class="panel">
+          <h2>빠른 도움</h2>
+          <div class="quick-actions">
+            <button data-quick="hint">힌트 주세요</button>
+            <button data-quick="answer">정답 보여줘</button>
+            <button data-quick="natural">더 자연스럽게</button>
+            <button data-quick="idiom">숙어도 알려줘</button>
+            <button data-quick="grammar">왜 이렇게 말해?</button>
+            <button data-quick="retry">다시 연습하기</button>
+          </div>
+        </section>
+
+        <section class="panel settings-panel">
+          <h2>AI 설정</h2>
+          <p class="muted small">API 키 없이도 데모 모드로 체험 가능. 실사용 시 OpenAI 호환 키를 넣으면 실제 AI 응답 사용.</p>
+          <label>
+            OpenAI 호환 API 키
+            <input id="apiKeyInput" type="password" placeholder="sk-... (선택)" />
+          </label>
+          <label>
+            Base URL
+            <input id="baseUrlInput" type="text" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1" />
+          </label>
+          <label>
+            Model
+            <input id="modelInput" type="text" placeholder="gpt-4.1-mini" value="gpt-4.1-mini" />
+          </label>
+          <div class="settings-actions">
+            <button id="saveSettingsBtn">설정 저장</button>
+            <button id="demoModeBtn">데모 모드 사용</button>
+          </div>
+          <div id="modeBadge" class="mode-badge">현재: 데모 모드</div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <section class="hero-card">
+          <div>
+            <div class="eyebrow">Daily English Companion</div>
+            <h2>영어로 말해보고, 막히면 한국어로 물어보세요.</h2>
+            <p>AI가 정답 문장, 교정, 더 자연스러운 표현, 숙어, 한국어 설명까지 한 번에 도와줍니다.</p>
+          </div>
+          <div class="hero-actions">
+            <button id="voiceBtn" class="secondary-btn">🎤 음성 인식</button>
+            <button id="speakLastBtn" class="secondary-btn">🔊 마지막 답변 듣기</button>
+          </div>
+        </section>
+
+        <section id="chatWindow" class="chat-window" aria-live="polite"></section>
+
+        <section id="feedbackPanel" class="feedback-panel hidden">
+          <div class="feedback-header">
+            <h3>학습 피드백</h3>
+            <button id="closeFeedbackBtn">닫기</button>
+          </div>
+          <div id="feedbackContent"></div>
+        </section>
+
+        <form id="composerForm" class="composer">
+          <textarea id="messageInput" rows="3" placeholder="영어로 답해보세요. 막히면 한국어로 '이걸 영어로 뭐라고 해?'라고 물어보셔도 돼요."></textarea>
+          <div class="composer-actions">
+            <button type="button" id="translateMyKoreanBtn" class="ghost-btn">한국어를 영어로</button>
+            <button type="button" id="correctMyEnglishBtn" class="ghost-btn">내 영어 고쳐줘</button>
+            <button type="submit" id="sendBtn" class="primary-btn">보내기</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <template id="messageTemplate">
+      <div class="message-row">
+        <div class="bubble-meta"></div>
+        <div class="bubble"></div>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
