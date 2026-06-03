@@ -40,6 +40,11 @@ const threadPresenceText = document.getElementById('threadPresenceText');
 const callFlowHint = document.getElementById('callFlowHint');
 const callCoachHint = document.getElementById('callCoachHint');
 const installHintCard = document.getElementById('installHintCard');
+const onboardingCard = document.getElementById('onboardingCard');
+const onboardingModal = document.getElementById('onboardingModal');
+const callSessionPreset = document.getElementById('callSessionPreset');
+const callSessionSubcopy = document.getElementById('callSessionSubcopy');
+const callLiveFocus = document.getElementById('callLiveFocus');
 
 const STATE = {
   messages: [],
@@ -94,6 +99,7 @@ seedWelcome();
 wireEvents();
 applyEnvironmentHints();
 applyStandaloneUiHints();
+applyOnboardingEntryHints();
 refreshTutorSurface();
 updateCallStatus('통화 전');
 updateCallTimerDisplay();
@@ -122,6 +128,14 @@ function wireEvents() {
   oneLineMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
   handsFreeMirrorToggle.addEventListener('change', syncMirrorToggleToMain);
   closeFeedbackBtn.addEventListener('click', () => feedbackPanel.classList.add('hidden'));
+  document.getElementById('openOnboardingBtn')?.addEventListener('click', () => openOnboarding('card'));
+  document.getElementById('skipOnboardingBtn')?.addEventListener('click', dismissOnboardingEntryHints);
+  document.getElementById('closeOnboardingBtn')?.addEventListener('click', closeOnboarding);
+  document.getElementById('onboardingChatBtn')?.addEventListener('click', startFromOnboardingChat);
+  document.getElementById('onboardingCallBtn')?.addEventListener('click', startFromOnboardingCall);
+  document.querySelectorAll('.starter-chip').forEach((btn) => {
+    btn.addEventListener('click', () => primeStarterPhrase(btn.dataset.starter || ''));
+  });
   document.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => onQuickAction(btn.dataset.quick));
   });
@@ -156,6 +170,62 @@ function applyStandaloneUiHints() {
   if (!installHintCard) return;
   const shouldShowInstallHint = isLikelyIPhone() && !standalone;
   installHintCard.classList.toggle('hidden', !shouldShowInstallHint);
+}
+
+function hasSeenOnboarding() {
+  return localStorage.getItem('annaOnboardingSeen') === 'yes';
+}
+
+function markOnboardingSeen() {
+  localStorage.setItem('annaOnboardingSeen', 'yes');
+}
+
+function applyOnboardingEntryHints() {
+  const shouldShowCard = !hasSeenOnboarding();
+  onboardingCard?.classList.toggle('hidden', !shouldShowCard);
+  if (shouldShowCard) {
+    setTimeout(() => openOnboarding('auto'), 180);
+  }
+}
+
+function dismissOnboardingEntryHints() {
+  markOnboardingSeen();
+  onboardingCard?.classList.add('hidden');
+}
+
+function openOnboarding(source = 'manual') {
+  if (!onboardingModal) return;
+  if (source !== 'auto') markOnboardingSeen();
+  onboardingCard?.classList.add('hidden');
+  onboardingModal.classList.remove('hidden');
+  onboardingModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeOnboarding() {
+  if (!onboardingModal) return;
+  markOnboardingSeen();
+  onboardingCard?.classList.add('hidden');
+  onboardingModal.classList.add('hidden');
+  onboardingModal.setAttribute('aria-hidden', 'true');
+}
+
+function startFromOnboardingChat() {
+  closeOnboarding();
+  messageInput.focus();
+  messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+}
+
+async function startFromOnboardingCall() {
+  closeOnboarding();
+  await startVideoConversation();
+}
+
+function primeStarterPhrase(text) {
+  if (!text) return;
+  messageInput.value = text;
+  messageInput.focus();
+  messageInput.setSelectionRange(text.length, text.length);
+  updateThreadPresence('ANNA가 준비됐어요 · 아래 문장을 그대로 보내거나 말해보세요');
 }
 
 function shortenForReplyPreview(text = '', maxLength = 72) {
@@ -337,10 +407,27 @@ function refreshTutorSurface() {
   if (callReplyBadge) callReplyBadge.textContent = isOneLineReplyModeEnabled() ? '1-line ON' : '1-line OFF';
   if (callHandsFreeBadge) callHandsFreeBadge.textContent = isHandsFreeModeEnabled() ? 'Hands-free ON' : 'Hands-free OFF';
   syncConversationModeControls();
+  updatePremiumCallDeck();
   if (!stageMoodText || STATE.call.active) return;
   stageMoodText.textContent = isUltraFastModeEnabled()
     ? 'Ready for a very fast, natural British-English call.'
     : 'Ready for a natural British-English chat.';
+}
+
+function updatePremiumCallDeck() {
+  if (callSessionPreset) {
+    callSessionPreset.textContent = `${isHandsFreeModeEnabled() ? 'British phone-English' : 'British tutor mode'} · ${STATE.settings.ttsMode === 'openai' ? 'AI voice' : 'browser voice'}`;
+  }
+  if (callSessionSubcopy) {
+    callSessionSubcopy.textContent = isOneLineReplyModeEnabled()
+      ? '실제 전화영어처럼 짧게 묻고 짧게 이어가는 흐름으로 맞춰져 있어요.'
+      : '조금 더 설명형으로 길게도 이어갈 수 있게 열어둔 상태예요.';
+  }
+  if (callLiveFocus && !STATE.call.active) {
+    callLiveFocus.textContent = isUltraFastModeEnabled()
+      ? '첫 문장은 짧고 또렷하게'
+      : '짧게 시작하고 한 턴씩 이어가기';
+  }
 }
 
 function applyEnvironmentHints() {
@@ -680,7 +767,9 @@ async function realAiReply(userText, options = {}) {
     'The user dislikes AI-sounding phrasing and long analysis.',
     'Always use British English spelling, vocabulary, rhythm, and phrasing.',
     'Sound like a real modern British tutor on a video call: cool, steady, natural, and never cheesy.',
+    'Keep it human and conversational, like a real person replying in the moment — not like a textbook or a system panel.',
     'Lead with the natural conversational reply first, not a lesson.',
+    'Prefer short spoken-style replies with soft rhythm, contractions, and light human filler only when it fits naturally.',
     'Only correct briefly when needed, and keep the correction crisp, casual, and short.',
     'If the user says they do not know, give one simple line they can copy and then keep the conversation moving.',
     'Use Korean only for very short support when helpful.',
@@ -811,7 +900,7 @@ async function demoReply(userText, options = {}) {
 
     return needsCorrection
       ? {
-          text: `A more natural way would be, "${natural}"`,
+          text: `You could simply say, "${natural}"`,
           subtitle: natural,
           speakText: natural,
           feedback: {
@@ -1285,8 +1374,8 @@ async function speakText(text) {
   STATE.call.currentUtterance = utterance;
   utterance.lang = lang;
   utterance.voice = pickBestVoice(lang);
-  utterance.rate = lang.startsWith('en') ? 0.95 : 1;
-  utterance.pitch = lang.startsWith('en') ? 1.04 : 1;
+  utterance.rate = lang.startsWith('en') ? (STATE.call.active ? 0.97 : 0.95) : 1;
+  utterance.pitch = lang.startsWith('en') ? 1.01 : 1;
   return new Promise((resolve) => {
     utterance.onstart = () => {
       STATE.call.assistantSpeaking = true;
@@ -1455,6 +1544,7 @@ async function startVideoLesson() {
   updateCallStatus('연결 중');
   updateThreadPresence('ANNA가 통화에 들어오는 중이에요 · 곧 연결됩니다');
   updateCallVibe('연결 중 · 마이크와 회화 세션을 준비하고 있어요.', '지금은 길게 설명하지 말고 짧게 한 문장으로 시작하면 가장 자연스러워요.');
+  if (callLiveFocus) callLiveFocus.textContent = '첫 문장은 자연스럽게 한 문장만';
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
   await new Promise((resolve) => setTimeout(resolve, 320));
@@ -1476,6 +1566,7 @@ async function startVideoLesson() {
   updateCallVibe('통화 연결됨 · ANNA가 먼저 받아줬어요.', isHandsFreeModeEnabled()
     ? '핸즈프리 상태예요. 한 턴 끝나면 ANNA가 자동으로 다시 들어요.'
     : '지금은 수동 청취 상태예요. 버튼을 눌러 다시 말할 수 있어요.');
+  if (callLiveFocus) callLiveFocus.textContent = '지금은 짧은 자기 문장으로 워밍업';
   appendSystemNotice('📞 ANNA가 통화에 들어왔어요. 이제 실제 전화영어처럼 이어집니다.');
   appendAssistant(opener, {
     meta: 'ANNA · live',
@@ -1537,6 +1628,7 @@ function startCallSpeechRecognition() {
   updateCallStatus('듣는 중');
   updateThreadPresence('ANNA가 지금 듣고 있어요 · 영어로 말하면 바로 답장해요');
   updateCallVibe('듣는 중 · 지금 말하는 문장을 바로 받는 중이에요.', '지금은 한 문장만 또렷하게 말해보세요. 너무 길면 실제 통화감이 떨어져요.');
+  if (callLiveFocus) callLiveFocus.textContent = '핵심만 짧게 말하면 가장 자연스러워요';
   updateAnnaSubtitle("I'm listening. Go on.");
   updateAnnaModeHint('ANNA가 지금 듣고 있어요. 끊지 말고 짧게 말하면 돼요.');
   updateSelfTranscriptHint('Listening… 영어로 편하게 말해보세요.');
@@ -1574,6 +1666,7 @@ function startCallSpeechRecognition() {
     updateCallStatus('화상 회화 중');
     updateThreadPresence('ANNA가 방금 음성을 들었어요 · 지금 바로 답장 준비 중');
     updateCallVibe('응답 준비 중 · 방금 말한 내용을 가장 자연스럽게 다듬는 중이에요.', '지금은 기다리기만 하면 돼요. 답이 끝나면 바로 다음 턴으로 넘어갈 수 있어요.');
+    if (callLiveFocus) callLiveFocus.textContent = '지금은 ANNA가 가장 자연스러운 답을 만드는 중';
     updateAnnaModeHint('좋아요. 바로 답을 만드는 중이에요.');
     setTutorMood('idle');
     messageInput.value = transcript;
@@ -1644,6 +1737,7 @@ function endVideoLesson() {
   updateCallStatus('통화 종료');
   updateThreadPresence('ANNA가 온라인이에요 · 메시지로도 계속 답장할 수 있어요');
   updateCallVibe('통화 종료 · 다시 시작 버튼으로 언제든 재입장 가능', '지금부터는 아래 메신저 스레드로 이어서 연습해도 자연스럽게 답장해줘요.');
+  if (callLiveFocus) callLiveFocus.textContent = '이제는 메신저처럼 이어서 보내도 좋아요';
   updateAvatarStatus('AI 튜터 대기중');
   updateAnnaSubtitle('화상 회화를 종료했어요. 다시 시작할 수 있어요.');
   speechSynthesis?.cancel?.();
@@ -1738,6 +1832,7 @@ function setTutorMood(mode) {
     annaStage.classList.add('call-active', 'mood-speaking', 'call-speaking');
     avatarFace.classList.add('mood-speaking');
     updateAvatarStatus('ANNA가 말하는 중');
+    if (callLiveFocus) callLiveFocus.textContent = '지금은 ANNA 답 리듬을 듣고 바로 짧게 이어보세요';
     if (stageMoodText) stageMoodText.textContent = 'ANNA is speaking now — listen for the rhythm.';
     return;
   }

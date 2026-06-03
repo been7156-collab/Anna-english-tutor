@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
     <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260603h" />
+    <link rel="stylesheet" href="./styles.css?v=20260603i" />
   </head>
   <body>
     <div class="app-shell">
@@ -175,6 +175,18 @@
           <span class="install-hint-badge">iPhone</span>
         </section>
 
+        <section id="onboardingCard" class="onboarding-card hidden">
+          <div class="onboarding-card-copy">
+            <span class="eyebrow">First-time guide</span>
+            <strong>처음이면 20초만에 시작할 수 있어요</strong>
+            <p>메신저처럼 먼저 한 문장 보내거나, 바로 전화영어 모드로 들어가도 돼요.</p>
+          </div>
+          <div class="onboarding-card-actions">
+            <button type="button" id="openOnboardingBtn" class="secondary-btn">사용법 보기</button>
+            <button type="button" id="skipOnboardingBtn" class="ghost-btn">바로 둘러보기</button>
+          </div>
+        </section>
+
         <section class="video-call-panel">
           <div class="video-call-header">
             <div>
@@ -266,6 +278,26 @@
               <span>핸즈프리</span>
             </label>
           </div>
+          <div class="premium-call-deck">
+            <div class="premium-call-card premium-call-card--glow">
+              <span class="premium-call-label">Session preset</span>
+              <strong id="callSessionPreset">British phone-English · calm tutor</strong>
+              <p id="callSessionSubcopy">실제 전화영어처럼 짧게 묻고 짧게 이어가는 흐름으로 맞춰져 있어요.</p>
+            </div>
+            <div class="premium-call-card">
+              <span class="premium-call-label">Live focus</span>
+              <strong id="callLiveFocus">첫 문장은 짧고 또렷하게</strong>
+              <p>예: “I went to church this morning.” / “I’m a bit tired today.”</p>
+            </div>
+            <div class="premium-call-card">
+              <span class="premium-call-label">Quick starters</span>
+              <div class="starter-chip-row">
+                <button type="button" class="starter-chip" data-starter="I went to church this morning.">교회</button>
+                <button type="button" class="starter-chip" data-starter="I am getting ready for worship rehearsal.">찬양팀</button>
+                <button type="button" class="starter-chip" data-starter="My day was busy, but quite good.">일상</button>
+              </div>
+            </div>
+          </div>
           <div id="browserHint" class="browser-hint hidden"></div>
         </section>
 
@@ -320,6 +352,45 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260603h"></script>
+    <div id="onboardingModal" class="onboarding-modal hidden" aria-hidden="true">
+      <div class="onboarding-sheet">
+        <div class="onboarding-sheet-top">
+          <div>
+            <span class="eyebrow">Welcome to ANNA</span>
+            <h3>이 앱은 이렇게 쓰면 제일 자연스러워요</h3>
+          </div>
+          <button type="button" id="closeOnboardingBtn" class="ghost-btn">닫기</button>
+        </div>
+        <div class="onboarding-steps">
+          <div class="onboarding-step">
+            <span>1</span>
+            <div>
+              <strong>메신저처럼 한 문장 보내기</strong>
+              <p>영어로 짧게 보내면 ANNA가 바로 답장하고, 필요하면 밑에 교정도 붙여줘요.</p>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span>2</span>
+            <div>
+              <strong>전화영어는 짧게 시작하기</strong>
+              <p>화상 회화에서는 한 문장씩 짧게 말할수록 실제 사람과 통화하는 느낌이 더 좋아져요.</p>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span>3</span>
+            <div>
+              <strong>막히면 한국어로 바로 물어보기</strong>
+              <p>“이걸 영어로 뭐라고 해?”처럼 물어봐도 흐름 안 끊기게 바로 이어서 도와줘요.</p>
+            </div>
+          </div>
+        </div>
+        <div class="onboarding-cta-row">
+          <button type="button" id="onboardingChatBtn" class="secondary-btn">메신저부터 시작</button>
+          <button type="button" id="onboardingCallBtn" class="primary-btn">전화영어 바로 시작</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js?v=20260603i"></script>
   </body>
 </html>
