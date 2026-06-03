@@ -30,6 +30,7 @@ const stageVoiceBadge = document.getElementById('stageVoiceBadge');
 const callSpeedBadge = document.getElementById('callSpeedBadge');
 const callReplyBadge = document.getElementById('callReplyBadge');
 const callHandsFreeBadge = document.getElementById('callHandsFreeBadge');
+const callTimerBadge = document.getElementById('callTimerBadge');
 const stageMoodText = document.getElementById('stageMoodText');
 const browserHint = document.getElementById('browserHint');
 const settingsDetails = document.getElementById('settingsDetails');
@@ -42,12 +43,15 @@ const STATE = {
   scenarioPrompted: false,
   settings: loadSettings(),
   voices: [],
+  typingIndicator: null,
   call: {
     active: false,
     stream: null,
     listening: false,
     recognition: null,
     resumeTimer: null,
+    startedAt: null,
+    clockTimer: null,
     turnInFlight: false,
     heardFinal: false,
     currentAudio: null,
@@ -82,9 +86,11 @@ wireEvents();
 applyEnvironmentHints();
 refreshTutorSurface();
 updateCallStatus('통화 전');
+updateCallTimerDisplay();
 
 function wireEvents() {
   composerForm.addEventListener('submit', onSubmit);
+  messageInput.addEventListener('keydown', onComposerKeydown);
   document.getElementById('startScenarioBtn').addEventListener('click', startScenario);
   document.getElementById('saveSettingsBtn').addEventListener('click', saveSettingsFromUI);
   document.getElementById('demoModeBtn').addEventListener('click', enableDemoMode);
@@ -109,6 +115,12 @@ function wireEvents() {
   document.querySelectorAll('[data-quick]').forEach((btn) => {
     btn.addEventListener('click', () => onQuickAction(btn.dataset.quick));
   });
+}
+
+function onComposerKeydown(event) {
+  if (event.key !== 'Enter' || event.shiftKey) return;
+  event.preventDefault();
+  composerForm.requestSubmit();
 }
 
 function getVoiceBadgeLabel() {
@@ -278,7 +290,8 @@ async function onSubmit(e) {
 }
 
 async function handleUserTurn(text, options = {}) {
-  appendUser(options.displayText || text);
+  const userMeta = options.source?.includes('voice') ? '나 · 음성' : '나';
+  appendUser(options.displayText || text, { meta: userMeta });
   STATE.call.turnInFlight = Boolean(STATE.call.active && options.source?.includes('voice'));
   setAvatar('🤔');
   setTutorMood('thinking');
@@ -286,9 +299,14 @@ async function handleUserTurn(text, options = {}) {
     updateCallStatus('ANNA 답변 준비 중');
     updateAnnaSubtitle(isUltraFastModeEnabled() ? 'Right — one sec.' : 'Right — give me a second.');
   }
+  const typingLabel = STATE.call.active && options.source?.includes('voice')
+    ? 'ANNA · live'
+    : 'ANNA 영어쌤';
+  showTypingIndicator(typingLabel, 'ANNA가 답장하는 중');
   try {
     const reply = await generateTutorReply(text, options);
-    appendAssistant(reply.text);
+    removeTypingIndicator();
+    appendAssistant(reply.text, { feedback: reply.feedback, meta: typingLabel });
     updateAnnaSubtitle(reply.subtitle || reply.text);
     if (reply.feedback && hasVisibleFeedback(reply.feedback)) {
       renderFeedback(reply.feedback);
@@ -302,9 +320,11 @@ async function handleUserTurn(text, options = {}) {
       queueCallListeningResume();
     }
   } catch (err) {
+    removeTypingIndicator();
     appendAssistant(`오류가 있었어요: ${err.message}`);
     updateAnnaSubtitle('잠시 오류가 있었어요. 다시 한 번 말해볼까요?');
   } finally {
+    removeTypingIndicator();
     STATE.call.turnInFlight = false;
     setAvatar('😊');
     setTutorMood('idle');
@@ -347,25 +367,79 @@ async function startVideoConversation() {
   startCallSpeechRecognition();
 }
 
-function appendUser(text) {
+function appendUser(text, options = {}) {
   STATE.messages.push({ role: 'user', content: text });
-  appendMessage('user', '나', text);
+  appendMessage('user', options.meta || '나', text, options);
 }
 
-function appendAssistant(text) {
+function appendAssistant(text, options = {}) {
   STATE.messages.push({ role: 'assistant', content: text });
   STATE.lastAssistantText = text;
-  appendMessage('assistant', 'ANNA 영어쌤', text);
+  appendMessage('assistant', options.meta || 'ANNA 영어쌤', text, options);
 }
 
-function appendMessage(role, meta, text) {
+function appendMessage(role, meta, text, options = {}) {
   const tpl = document.getElementById('messageTemplate');
   const node = tpl.content.firstElementChild.cloneNode(true);
   node.classList.add(role);
+  node.querySelector('.message-avatar').textContent = role === 'assistant' ? 'A' : '나';
   node.querySelector('.bubble-meta').textContent = meta;
+  node.querySelector('.bubble-time').textContent = formatMessageTime(options.timestamp || Date.now());
   node.querySelector('.bubble').textContent = text;
+  if (options.feedback && hasVisibleFeedback(options.feedback)) {
+    populateInlineFeedback(node.querySelector('.bubble-feedback'), options.feedback);
+  }
   chatWindow.appendChild(node);
+  scrollChatToBottom();
+  return node;
+}
+
+function formatMessageTime(timestamp = Date.now()) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(timestamp);
+}
+
+function scrollChatToBottom() {
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function showTypingIndicator(label = 'ANNA 영어쌤', text = 'ANNA가 답장하는 중') {
+  removeTypingIndicator();
+  const node = appendMessage('assistant', label, '', { timestamp: Date.now() });
+  node.classList.add('typing-indicator');
+  node.querySelector('.bubble-meta').textContent = label;
+  node.querySelector('.bubble').innerHTML = `<div class="typing-bubble" aria-label="${escapeHtml(text)}"><span></span><span></span><span></span></div>`;
+  STATE.typingIndicator = node;
+  scrollChatToBottom();
+  return node;
+}
+
+function removeTypingIndicator() {
+  if (!STATE.typingIndicator) return;
+  STATE.typingIndicator.remove();
+  STATE.typingIndicator = null;
+}
+
+function populateInlineFeedback(container, feedback) {
+  if (!container) return;
+  const cards = [];
+  if (feedback.answer) {
+    cards.push(`<div class="bubble-feedback-card"><strong>바로 쓸 문장</strong><p>${escapeHtml(feedback.answer)}</p></div>`);
+  }
+  if (feedback.correction) {
+    cards.push(`<div class="bubble-feedback-card"><strong>교정</strong><p>${escapeHtml(feedback.correction)}</p></div>`);
+  }
+  if (feedback.explanation) {
+    cards.push(`<div class="bubble-feedback-card"><strong>짧은 설명</strong><p>${escapeHtml(feedback.explanation)}</p></div>`);
+  }
+  if ((feedback.vocabulary || []).length) {
+    const chips = feedback.vocabulary.map((item) => `<span class="inline-chip">${escapeHtml(item)}</span>`).join('');
+    cards.push(`<div class="bubble-feedback-card"><strong>같이 외우면 좋은 표현</strong><div>${chips}</div></div>`);
+  }
+  container.innerHTML = cards.join('');
+  container.classList.toggle('hidden', cards.length === 0);
 }
 
 function renderFeedback(feedback) {
@@ -1169,10 +1243,15 @@ async function startVideoLesson() {
   STATE.call.active = true;
   STATE.call.turnInFlight = false;
   STATE.call.heardFinal = false;
+  STATE.call.startedAt = Date.now();
+  startCallClock();
   updateCallStatus('화상 회화 중');
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
-  updateAnnaSubtitle('Right — start with one short sentence.');
+  const opener = isHandsFreeModeEnabled()
+    ? 'Hi — I’m here. Start when you’re ready.'
+    : 'Hi — I’m here. Start with one short sentence.';
+  updateAnnaSubtitle(opener);
   if (stageMoodText) {
     stageMoodText.textContent = isHandsFreeModeEnabled()
       ? 'Hands-free call mode is ready. Just keep talking naturally.'
@@ -1180,11 +1259,11 @@ async function startVideoLesson() {
   }
   appendAssistant(
     isHandsFreeModeEnabled()
-      ? '📹 화상 회화 모드를 시작했어. 이제 핸즈프리로 갈게. 한 번 말하면 내가 답하고 다시 자동으로 들을게. 내가 말하는 중에 바로 끼어들고 싶으면 “🎙️ 지금 말하고 답받기”를 다시 누르면 돼.'
-      : '📹 화상 회화 모드를 시작했어. 실제 통화처럼 짧고 자연스럽게 가보자. 먼저 한 문장만 영어로 말해봐. 막히면 “I don\'t know”라고 해도 내가 바로 이어줄게.'
+      ? '📞 ANNA가 통화에 들어왔어요. 이제 실제 통화처럼 이어갈게요. 한 번 말하면 바로 답하고, 끝나면 자동으로 다시 들을게요.'
+      : '📞 ANNA가 통화에 들어왔어요. 실제 통화처럼 짧고 자연스럽게 가볼게요. 먼저 한 문장만 말해보세요.'
   );
   if (!isHandsFreeModeEnabled()) {
-    speakText('Right — start with one short sentence.');
+    speakText(opener);
   }
 }
 
@@ -1323,6 +1402,8 @@ function endVideoLesson() {
   STATE.call.heardFinal = false;
   STATE.call.assistantSpeaking = false;
   STATE.call.currentUtterance = null;
+  STATE.call.startedAt = null;
+  stopCallClock();
   clearOpenAiAudioPlayback();
   userVideo.srcObject = null;
   userVideo.classList.remove('active');
@@ -1333,6 +1414,38 @@ function endVideoLesson() {
   updateAnnaSubtitle('화상 회화를 종료했어요. 다시 시작할 수 있어요.');
   speechSynthesis?.cancel?.();
   appendAssistant('📴 화상 회화를 종료했어요. 채팅으로 계속 연습하셔도 됩니다.');
+}
+
+function formatCallDuration(totalSeconds = 0) {
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function updateCallTimerDisplay() {
+  if (!callTimerBadge) return;
+  if (!STATE.call.active || !STATE.call.startedAt) {
+    callTimerBadge.textContent = '00:00';
+    return;
+  }
+  const elapsed = Math.max(0, Math.floor((Date.now() - STATE.call.startedAt) / 1000));
+  callTimerBadge.textContent = formatCallDuration(elapsed);
+}
+
+function startCallClock() {
+  if (STATE.call.clockTimer) {
+    clearInterval(STATE.call.clockTimer);
+  }
+  updateCallTimerDisplay();
+  STATE.call.clockTimer = setInterval(updateCallTimerDisplay, 1000);
+}
+
+function stopCallClock() {
+  if (STATE.call.clockTimer) {
+    clearInterval(STATE.call.clockTimer);
+    STATE.call.clockTimer = null;
+  }
+  updateCallTimerDisplay();
 }
 
 function updateCallStatus(text) {

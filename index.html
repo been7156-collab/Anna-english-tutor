@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
     <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260603c" />
+    <link rel="stylesheet" href="./styles.css?v=20260603d" />
   </head>
   <body>
     <div class="app-shell">
@@ -179,7 +179,10 @@
                 <span>Short natural replies</span>
               </div>
             </div>
-            <div id="callStatusBadge" class="mode-badge">통화 전</div>
+            <div class="call-header-badges">
+              <div id="callStatusBadge" class="mode-badge">통화 전</div>
+              <div id="callTimerBadge" class="mode-badge mode-badge--timer">00:00</div>
+            </div>
           </div>
 
           <div class="call-grid">
@@ -271,11 +274,18 @@
 
     <template id="messageTemplate">
       <div class="message-row">
-        <div class="bubble-meta"></div>
-        <div class="bubble"></div>
+        <div class="message-avatar" aria-hidden="true"></div>
+        <div class="message-stack">
+          <div class="bubble-meta-row">
+            <div class="bubble-meta"></div>
+            <div class="bubble-time"></div>
+          </div>
+          <div class="bubble"></div>
+          <div class="bubble-feedback hidden"></div>
+        </div>
       </div>
     </template>
 
-    <script src="./app.js?v=20260603c"></script>
+    <script src="./app.js?v=20260603d"></script>
   </body>
 </html>
