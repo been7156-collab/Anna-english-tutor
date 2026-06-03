@@ -37,6 +37,8 @@ const settingsDetails = document.getElementById('settingsDetails');
 const userVideo = document.getElementById('userVideo');
 const selfVideoFallback = document.getElementById('selfVideoFallback');
 const threadPresenceText = document.getElementById('threadPresenceText');
+const callFlowHint = document.getElementById('callFlowHint');
+const callCoachHint = document.getElementById('callCoachHint');
 
 const STATE = {
   messages: [],
@@ -46,6 +48,10 @@ const STATE = {
   voices: [],
   typingIndicator: null,
   fallbackNoticeShown: false,
+  providerState: {
+    fallbackUntil: 0,
+    lastErrorKind: '',
+  },
   call: {
     active: false,
     stream: null,
@@ -127,6 +133,11 @@ function onComposerKeydown(event) {
 
 function updateThreadPresence(text) {
   if (threadPresenceText) threadPresenceText.textContent = text;
+}
+
+function updateCallVibe(flowText, coachText) {
+  if (callFlowHint && flowText) callFlowHint.textContent = flowText;
+  if (callCoachHint && coachText) callCoachHint.textContent = coachText;
 }
 
 function shortenForReplyPreview(text = '', maxLength = 72) {
@@ -218,6 +229,54 @@ function getReplyTemperature({ isVoiceCall = false } = {}) {
   if (isVoiceCall && isUltraFastModeEnabled()) return 0.45;
   if (isVoiceCall) return 0.6;
   return 0.8;
+}
+
+function getProviderErrorKind(error) {
+  const text = String(error?.message || '').toLowerCase();
+  if (text.includes('insufficient_quota') || text.includes('exceeded your current quota') || text.includes('billing') || text.includes('quota')) {
+    return 'quota';
+  }
+  if (text.includes('429') || text.includes('rate limit')) {
+    return 'rate-limit';
+  }
+  if (text.includes('401') || text.includes('invalid api key') || text.includes('incorrect api key') || text.includes('unauthorized')) {
+    return 'auth';
+  }
+  if (text.includes('fetch') || text.includes('networkerror') || text.includes('failed to fetch') || text.includes('timeout')) {
+    return 'network';
+  }
+  return '';
+}
+
+function isProviderFallbackActive() {
+  return Date.now() < Number(STATE.providerState?.fallbackUntil || 0);
+}
+
+function clearProviderFallbackState() {
+  STATE.providerState.fallbackUntil = 0;
+  STATE.providerState.lastErrorKind = '';
+  STATE.fallbackNoticeShown = false;
+  updateModeBadge();
+}
+
+function activateProviderFallback(error) {
+  const kind = getProviderErrorKind(error);
+  const now = Date.now();
+  const durationMs = kind === 'quota' ? 5 * 60 * 1000 : 60 * 1000;
+  STATE.providerState.fallbackUntil = now + durationMs;
+  STATE.providerState.lastErrorKind = kind;
+  updateModeBadge();
+  return kind;
+}
+
+function getProviderFallbackNoticeText(kind) {
+  if (kind === 'quota') {
+    return '실시간 AI 서버 요금/쿼터가 소진돼서 지금은 데모 엔진으로 바로 이어서 답하고 있어요. UI와 대화 흐름은 계속 사용할 수 있어요.';
+  }
+  if (kind === 'auth') {
+    return '실시간 AI 서버 인증 설정에 문제가 있어서 지금은 데모 엔진으로 이어서 답하고 있어요.';
+  }
+  return '실시간 AI 서버가 잠시 불안정해서 지금은 데모 엔진으로 자연스럽게 이어서 답하고 있어요.';
 }
 
 function getCallResumeDelay() {
@@ -526,9 +585,23 @@ function hasVisibleFeedback(feedback) {
 }
 
 async function generateTutorReply(userText, options = {}) {
+  if ((STATE.settings.apiKey || getProxyBaseUrl()) && isProviderFallbackActive()) {
+    const fallbackReply = await demoReply(userText, options);
+    if (!STATE.fallbackNoticeShown) {
+      fallbackReply.systemNotice = {
+        text: getProviderFallbackNoticeText(STATE.providerState.lastErrorKind),
+        tone: 'warning',
+      };
+      STATE.fallbackNoticeShown = true;
+    }
+    return fallbackReply;
+  }
+
   if (STATE.settings.apiKey) {
     try {
-      return await realAiReply(userText, options);
+      const reply = await realAiReply(userText, options);
+      clearProviderFallbackState();
+      return reply;
     } catch (error) {
       const fallback = await maybeFallbackToDemoReply(userText, options, error);
       if (fallback) return fallback;
@@ -537,7 +610,9 @@ async function generateTutorReply(userText, options = {}) {
   }
   if (getProxyBaseUrl()) {
     try {
-      return await proxyAiReply(userText, options);
+      const reply = await proxyAiReply(userText, options);
+      clearProviderFallbackState();
+      return reply;
     } catch (error) {
       const fallback = await maybeFallbackToDemoReply(userText, options, error);
       if (fallback) return fallback;
@@ -550,9 +625,10 @@ async function generateTutorReply(userText, options = {}) {
 async function maybeFallbackToDemoReply(userText, options = {}, error) {
   if (!shouldUseDemoFallback(error)) return null;
   const fallbackReply = await demoReply(userText, options);
+  const kind = activateProviderFallback(error);
   if (!STATE.fallbackNoticeShown) {
     fallbackReply.systemNotice = {
-      text: '실시간 AI 서버가 잠시 불안정해서 지금은 데모 엔진으로 자연스럽게 이어서 답하고 있어요.',
+      text: getProviderFallbackNoticeText(kind),
       tone: 'warning',
     };
     STATE.fallbackNoticeShown = true;
@@ -997,6 +1073,7 @@ function saveSettingsFromUI() {
     oneLineReplyMode: Boolean(oneLineReplyToggle?.checked),
     handsFreeMode: Boolean(handsFreeModeToggle?.checked),
   };
+  clearProviderFallbackState();
   persistSettings();
   updateModeBadge();
   refreshTutorSurface();
@@ -1015,6 +1092,7 @@ function enableDemoMode() {
   STATE.settings.apiKey = '';
   proxyUrlInput.value = '';
   apiKeyInput.value = '';
+  clearProviderFallbackState();
   persistSettings();
   updateModeBadge();
   refreshTutorSurface();
@@ -1057,12 +1135,15 @@ function applySettingsUI() {
 
 function updateModeBadge() {
   const callModeLabel = `${isUltraFastModeEnabled() ? '초고속' : '기본속도'} · ${isOneLineReplyModeEnabled() ? '1문장' : '자유응답'} · ${isHandsFreeModeEnabled() ? '핸즈프리' : '수동청취'}`;
+  const fallbackSuffix = isProviderFallbackActive()
+    ? ` · 현재 ${STATE.providerState.lastErrorKind === 'quota' ? '데모 fallback (quota)' : '데모 fallback'}`
+    : '';
   if (STATE.settings.apiKey) {
-    modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}`;
+    modeBadge.textContent = `개인 API 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}${fallbackSuffix}`;
     return;
   }
   if (getProxyBaseUrl()) {
-    modeBadge.textContent = `공개 AI 서버 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}`;
+    modeBadge.textContent = `공개 AI 서버 연결 · ${STATE.settings.model} · ${STATE.settings.ttsMode === 'openai' ? `AI 음성 ${STATE.settings.ttsVoice || 'nova'}` : '브라우저 음성'} · ${callModeLabel}${fallbackSuffix}`;
     return;
   }
   modeBadge.textContent = `데모 모드 · 브라우저에서 바로 체험 가능 · ${callModeLabel}`;
@@ -1355,6 +1436,7 @@ async function startVideoLesson() {
   startCallClock();
   updateCallStatus('연결 중');
   updateThreadPresence('ANNA가 통화에 들어오는 중이에요 · 곧 연결됩니다');
+  updateCallVibe('연결 중 · 마이크와 회화 세션을 준비하고 있어요.', '지금은 길게 설명하지 말고 짧게 한 문장으로 시작하면 가장 자연스러워요.');
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
   await new Promise((resolve) => setTimeout(resolve, 320));
@@ -1373,6 +1455,9 @@ async function startVideoLesson() {
     ? 'ANNA가 통화에 들어왔어요. 바로 말하면 끊김 없이 이어가요.'
     : 'ANNA가 통화에 들어왔어요. 먼저 짧게 한 문장만 말해보세요.');
   updateSelfTranscriptHint('카메라와 마이크가 준비되면 바로 영어로 말해보세요.');
+  updateCallVibe('통화 연결됨 · ANNA가 먼저 받아줬어요.', isHandsFreeModeEnabled()
+    ? '핸즈프리 상태예요. 한 턴 끝나면 ANNA가 자동으로 다시 들어요.'
+    : '지금은 수동 청취 상태예요. 버튼을 눌러 다시 말할 수 있어요.');
   appendSystemNotice('📞 ANNA가 통화에 들어왔어요. 이제 실제 전화영어처럼 이어집니다.');
   appendAssistant(opener, {
     meta: 'ANNA · live',
@@ -1433,6 +1518,7 @@ function startCallSpeechRecognition() {
   annaStage.classList.add('call-listening');
   updateCallStatus('듣는 중');
   updateThreadPresence('ANNA가 지금 듣고 있어요 · 영어로 말하면 바로 답장해요');
+  updateCallVibe('듣는 중 · 지금 말하는 문장을 바로 받는 중이에요.', '지금은 한 문장만 또렷하게 말해보세요. 너무 길면 실제 통화감이 떨어져요.');
   updateAnnaSubtitle("I'm listening. Go on.");
   updateAnnaModeHint('ANNA가 지금 듣고 있어요. 끊지 말고 짧게 말하면 돼요.');
   updateSelfTranscriptHint('Listening… 영어로 편하게 말해보세요.');
@@ -1469,6 +1555,7 @@ function startCallSpeechRecognition() {
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
     updateThreadPresence('ANNA가 방금 음성을 들었어요 · 지금 바로 답장 준비 중');
+    updateCallVibe('응답 준비 중 · 방금 말한 내용을 가장 자연스럽게 다듬는 중이에요.', '지금은 기다리기만 하면 돼요. 답이 끝나면 바로 다음 턴으로 넘어갈 수 있어요.');
     updateAnnaModeHint('좋아요. 바로 답을 만드는 중이에요.');
     setTutorMood('idle');
     messageInput.value = transcript;
@@ -1538,6 +1625,7 @@ function endVideoLesson() {
   annaStage.classList.remove('call-active', 'call-listening');
   updateCallStatus('통화 종료');
   updateThreadPresence('ANNA가 온라인이에요 · 메시지로도 계속 답장할 수 있어요');
+  updateCallVibe('통화 종료 · 다시 시작 버튼으로 언제든 재입장 가능', '지금부터는 아래 메신저 스레드로 이어서 연습해도 자연스럽게 답장해줘요.');
   updateAvatarStatus('AI 튜터 대기중');
   updateAnnaSubtitle('화상 회화를 종료했어요. 다시 시작할 수 있어요.');
   speechSynthesis?.cancel?.();
@@ -1590,6 +1678,19 @@ function updateCallStatus(text) {
     '통화 종료': 'Call ended. You can restart any time.',
   };
   stageMoodText.textContent = map[text] || text;
+
+  const vibeMap = {
+    '통화 전': ['연결 전 · 버튼 한 번으로 바로 시작', '짧게 말할수록 실제 전화영어처럼 더 자연스럽게 이어져요.'],
+    '연결 중': ['연결 중 · ANNA가 통화에 들어오는 중이에요.', '마이크가 준비되면 곧바로 한 문장으로 시작해보세요.'],
+    '통화 연결됨': ['통화 연결됨 · 실제 사람처럼 바로 받아줬어요.', '지금부터는 설명보다 대화 흐름을 우선해서 짧게 이어가면 좋아요.'],
+    '화상 회화 중': ['화상 회화 중 · 다음 턴을 이어갈 준비가 됐어요.', '막히면 한국어로 물어봐도 되고, 영어는 한두 문장으로 가볍게 이어가면 돼요.'],
+    '듣는 중': ['듣는 중 · 방금 말하는 문장을 실시간으로 받고 있어요.', '너무 길게 말하지 말고 또렷한 한 문장으로 말하면 응답이 빨라져요.'],
+    'ANNA 답변 중': ['ANNA 답변 중 · 실제 전화영어처럼 지금 말해주고 있어요.', '답을 다 들은 뒤 바로 다음 말을 짧게 이어보세요.'],
+    'ANNA 답변 준비 중': ['응답 준비 중 · 가장 자연스러운 표현으로 다듬는 중이에요.', '지금은 기다리기만 하면 돼요. 곧 바로 다음 턴으로 넘어가요.'],
+    '통화 종료': ['통화 종료 · 다시 시작 버튼으로 언제든 돌아올 수 있어요.', '이제 아래 메신저 스레드로 계속 연습해도 자연스럽게 이어집니다.'],
+  };
+  const vibe = vibeMap[text];
+  if (vibe) updateCallVibe(vibe[0], vibe[1]);
 }
 
 function updateAnnaSubtitle(text) {
