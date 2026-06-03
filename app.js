@@ -39,6 +39,7 @@ const selfVideoFallback = document.getElementById('selfVideoFallback');
 const threadPresenceText = document.getElementById('threadPresenceText');
 const callFlowHint = document.getElementById('callFlowHint');
 const callCoachHint = document.getElementById('callCoachHint');
+const installHintCard = document.getElementById('installHintCard');
 
 const STATE = {
   messages: [],
@@ -92,6 +93,7 @@ primeVoices();
 seedWelcome();
 wireEvents();
 applyEnvironmentHints();
+applyStandaloneUiHints();
 refreshTutorSurface();
 updateCallStatus('통화 전');
 updateCallTimerDisplay();
@@ -138,6 +140,22 @@ function updateThreadPresence(text) {
 function updateCallVibe(flowText, coachText) {
   if (callFlowHint && flowText) callFlowHint.textContent = flowText;
   if (callCoachHint && coachText) callCoachHint.textContent = coachText;
+}
+
+function isStandaloneDisplayMode() {
+  return window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true;
+}
+
+function isLikelyIPhone() {
+  return /iphone/i.test(window.navigator.userAgent || '');
+}
+
+function applyStandaloneUiHints() {
+  const standalone = isStandaloneDisplayMode();
+  document.body.classList.toggle('standalone', standalone);
+  if (!installHintCard) return;
+  const shouldShowInstallHint = isLikelyIPhone() && !standalone;
+  installHintCard.classList.toggle('hidden', !shouldShowInstallHint);
 }
 
 function shortenForReplyPreview(text = '', maxLength = 72) {
@@ -793,20 +811,20 @@ async function demoReply(userText, options = {}) {
 
     return needsCorrection
       ? {
-          text: `You could say, "${natural}"`,
+          text: `A more natural way would be, "${natural}"`,
           subtitle: natural,
           speakText: natural,
           feedback: {
             answer: natural,
             correction: corrected,
-            explanation: '이렇게 바꾸면 더 자연스럽고 매끄러워.',
+            explanation: '이렇게 바꾸면 더 자연스럽고 실제 회화처럼 들려.',
             vocabulary: vocabForTheme(theme).slice(0, 3),
           }
         }
       : {
-          text: 'That already sounds natural.',
-          subtitle: 'That already sounds natural.',
-          speakText: 'That already sounds natural.',
+          text: 'That already sounds good.',
+          subtitle: 'That already sounds good.',
+          speakText: 'That already sounds good.',
           feedback: null,
         };
   }
@@ -817,7 +835,7 @@ async function demoReply(userText, options = {}) {
   if (/^(i don't know|i dont know|모르겠|잘 모르겠)/i.test(lower) || /모르겠/.test(normalized)) {
     const answer = sampleAnswerForTheme(theme);
     return {
-      text: `No problem — you can just say, "${answer}"`,
+      text: `That’s alright — you can just say, "${answer}"`,
       subtitle: answer,
       speakText: answer,
       feedback: {
@@ -849,8 +867,8 @@ async function demoReply(userText, options = {}) {
   const natural = makeMoreNatural(corrected, theme);
   const needsCorrection = corrected !== normalized || natural !== corrected;
   const partnerReply = conversationalFollowUp(natural, theme);
-  const correctionLine = needsCorrection ? `In British English, you could say, "${natural}"` : '';
-  const explanation = needsCorrection ? '이렇게 바꾸면 영국영어로 훨씬 자연스러워.' : '';
+  const correctionLine = needsCorrection ? `More naturally: "${natural}"` : '';
+  const explanation = needsCorrection ? '이렇게 바꾸면 영국영어로 훨씬 자연스럽고 사람처럼 들려.' : '';
 
   return {
     text: `${partnerReply}${correctionLine ? `\n\n${correctionLine}` : ''}`,
@@ -871,8 +889,8 @@ function conversationalFollowUp(natural, theme) {
   if (theme === 'daily') {
     if (/(went to church|church)/i.test(lower)) {
       return pickVariant(natural, [
-        'Right. What did you do at church?',
-        'Was it for worship or a meeting, then?',
+        'Right — what did you do at church, then?',
+        'Was it for worship or a meeting?',
         'I see. Who did you go with?'
       ]);
     }
@@ -886,7 +904,7 @@ function conversationalFollowUp(natural, theme) {
     if (/(busy|tired)/i.test(lower)) {
       return pickVariant(natural, [
         'Sounds like a long day. What made it so busy?',
-        'Right. Are you getting a bit of rest now?',
+        'Right — are you getting a bit of rest now?',
         'What kept you busy, then?'
       ]);
     }

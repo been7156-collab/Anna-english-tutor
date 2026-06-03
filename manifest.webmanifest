@@ -1,8 +1,11 @@
 {
+  "id": "/",
   "name": "ANNA 영어쌤",
   "short_name": "ANNA",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#09111f",
   "theme_color": "#09111f",
   "description": "실사형 영국식 AI 영어 튜터 ANNA와 카메라·음성 회화 연습을 바로 시작해보세요.",
