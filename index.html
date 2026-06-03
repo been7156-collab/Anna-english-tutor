@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./assets/anna-icon-512.png" />
     <link rel="icon" type="image/png" href="./assets/anna-icon-512.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260603d" />
+    <link rel="stylesheet" href="./styles.css?v=20260603f" />
   </head>
   <body>
     <div class="app-shell">
@@ -251,7 +251,21 @@
           <div id="browserHint" class="browser-hint hidden"></div>
         </section>
 
-        <section id="chatWindow" class="chat-window" aria-live="polite"></section>
+        <section class="chat-thread-shell">
+          <div class="thread-header">
+            <div>
+              <div class="eyebrow">ANNA Messenger</div>
+              <h3>실제 답장처럼 이어지는 회화 스레드</h3>
+              <p id="threadPresenceText" class="thread-presence muted small">ANNA가 온라인이에요 · 답장을 기다리고 있어요</p>
+            </div>
+            <div class="thread-badges">
+              <span class="thread-badge">typing</span>
+              <span class="thread-badge">voice</span>
+              <span class="thread-badge">reply + correction</span>
+            </div>
+          </div>
+          <section id="chatWindow" class="chat-window" aria-live="polite"></section>
+        </section>
 
         <section id="feedbackPanel" class="feedback-panel hidden">
           <div class="feedback-header">
@@ -263,6 +277,7 @@
 
         <form id="composerForm" class="composer">
           <textarea id="messageInput" rows="3" placeholder="영어로 답해보세요. 막히면 한국어로 '이걸 영어로 뭐라고 해?'라고 물어보셔도 돼요."></textarea>
+          <div class="composer-helper">Enter = 보내기 · Shift+Enter = 줄바꿈 · 음성으로 말하면 메신저 스레드에도 그대로 남아요.</div>
           <div class="composer-actions">
             <button type="button" id="translateMyKoreanBtn" class="ghost-btn">한국어를 영어로</button>
             <button type="button" id="correctMyEnglishBtn" class="ghost-btn">내 영어 고쳐줘</button>
@@ -280,12 +295,13 @@
             <div class="bubble-meta"></div>
             <div class="bubble-time"></div>
           </div>
+          <div class="bubble-reply-preview hidden"></div>
           <div class="bubble"></div>
           <div class="bubble-feedback hidden"></div>
         </div>
       </div>
     </template>
 
-    <script src="./app.js?v=20260603d"></script>
+    <script src="./app.js?v=20260603f"></script>
   </body>
 </html>

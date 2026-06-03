@@ -36,6 +36,7 @@ const browserHint = document.getElementById('browserHint');
 const settingsDetails = document.getElementById('settingsDetails');
 const userVideo = document.getElementById('userVideo');
 const selfVideoFallback = document.getElementById('selfVideoFallback');
+const threadPresenceText = document.getElementById('threadPresenceText');
 
 const STATE = {
   messages: [],
@@ -44,6 +45,7 @@ const STATE = {
   settings: loadSettings(),
   voices: [],
   typingIndicator: null,
+  fallbackNoticeShown: false,
   call: {
     active: false,
     stream: null,
@@ -121,6 +123,23 @@ function onComposerKeydown(event) {
   if (event.key !== 'Enter' || event.shiftKey) return;
   event.preventDefault();
   composerForm.requestSubmit();
+}
+
+function updateThreadPresence(text) {
+  if (threadPresenceText) threadPresenceText.textContent = text;
+}
+
+function shortenForReplyPreview(text = '', maxLength = 72) {
+  const normalized = stripForSpeech(String(text || '')).replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function buildReplyPreviewHtml(meta, text) {
+  const preview = shortenForReplyPreview(text);
+  if (!preview) return '';
+  return `<strong>${escapeHtml(meta)}</strong><span>· ${escapeHtml(preview)}</span>`;
 }
 
 function getVoiceBadgeLabel() {
@@ -291,22 +310,40 @@ async function onSubmit(e) {
 
 async function handleUserTurn(text, options = {}) {
   const userMeta = options.source?.includes('voice') ? '나 · 음성' : '나';
-  appendUser(options.displayText || text, { meta: userMeta });
+  const isVoiceSource = options.source?.includes('voice');
+  appendUser(options.displayText || text, { meta: userMeta, variant: isVoiceSource ? 'voice-user' : '' });
   STATE.call.turnInFlight = Boolean(STATE.call.active && options.source?.includes('voice'));
+  updateThreadPresence(isVoiceSource
+    ? 'ANNA가 방금 음성을 받았어요 · 바로 답장 중이에요'
+    : 'ANNA가 메시지를 읽고 있어요 · 곧 답장해요');
   setAvatar('🤔');
   setTutorMood('thinking');
   if (STATE.call.active && options.source?.includes('voice')) {
     updateCallStatus('ANNA 답변 준비 중');
     updateAnnaSubtitle(isUltraFastModeEnabled() ? 'Right — one sec.' : 'Right — give me a second.');
+    updateAnnaModeHint('방금 말한 내용을 듣고 바로 답하는 중');
   }
   const typingLabel = STATE.call.active && options.source?.includes('voice')
     ? 'ANNA · live'
     : 'ANNA 영어쌤';
-  showTypingIndicator(typingLabel, 'ANNA가 답장하는 중');
+  showTypingIndicator(typingLabel, 'ANNA가 답장하는 중', {
+    replyToMeta: userMeta,
+    replyToText: options.displayText || text,
+    variant: STATE.call.active && options.source?.includes('voice') ? 'live-assistant' : '',
+  });
   try {
     const reply = await generateTutorReply(text, options);
     removeTypingIndicator();
-    appendAssistant(reply.text, { feedback: reply.feedback, meta: typingLabel });
+    appendAssistant(reply.text, {
+      feedback: reply.feedback,
+      meta: typingLabel,
+      variant: STATE.call.active && options.source?.includes('voice') ? 'live-assistant' : '',
+      replyToMeta: userMeta,
+      replyToText: options.displayText || text,
+    });
+    updateThreadPresence(STATE.call.active && options.source?.includes('voice')
+      ? 'ANNA가 방금 음성에 답장했어요 · 이어서 말하면 바로 다시 들어요'
+      : 'ANNA가 방금 답장했어요 · 계속 이어서 보내보세요');
     updateAnnaSubtitle(reply.subtitle || reply.text);
     if (reply.feedback && hasVisibleFeedback(reply.feedback)) {
       renderFeedback(reply.feedback);
@@ -316,12 +353,20 @@ async function handleUserTurn(text, options = {}) {
     if (options.autoSpeak) {
       await speakText(reply.speakText || reply.text);
     }
+    if (reply.systemNotice) {
+      appendSystemNotice(reply.systemNotice.text, reply.systemNotice.tone || 'neutral');
+    }
     if (STATE.call.active && options.source === 'voice-call') {
+      updateSelfTranscriptHint(`방금 내가 말한 문장: ${stripForSpeech(text).slice(0, 90)}`);
+      updateAnnaModeHint(isHandsFreeModeEnabled()
+        ? 'ANNA가 답했어요. 곧 다시 듣기 시작합니다.'
+        : 'ANNA가 답했어요. 다시 말하려면 아래 버튼을 눌러주세요.');
       queueCallListeningResume();
     }
   } catch (err) {
     removeTypingIndicator();
-    appendAssistant(`오류가 있었어요: ${err.message}`);
+    appendSystemNotice(`오류가 있었어요. ${err.message}`, 'warning');
+    updateThreadPresence('ANNA 연결이 잠깐 흔들렸어요 · 다시 보내면 이어서 답장해요');
     updateAnnaSubtitle('잠시 오류가 있었어요. 다시 한 번 말해볼까요?');
   } finally {
     removeTypingIndicator();
@@ -378,13 +423,32 @@ function appendAssistant(text, options = {}) {
   appendMessage('assistant', options.meta || 'ANNA 영어쌤', text, options);
 }
 
+function appendSystemNotice(text, tone = 'neutral') {
+  const node = document.createElement('div');
+  node.className = 'message-row system';
+  const chip = document.createElement('div');
+  chip.className = `system-chip${tone === 'warning' ? ' warning' : ''}`;
+  chip.textContent = text;
+  node.appendChild(chip);
+  chatWindow.appendChild(node);
+  scrollChatToBottom();
+  return node;
+}
+
 function appendMessage(role, meta, text, options = {}) {
   const tpl = document.getElementById('messageTemplate');
   const node = tpl.content.firstElementChild.cloneNode(true);
   node.classList.add(role);
+  if (options.variant) node.classList.add(options.variant);
   node.querySelector('.message-avatar').textContent = role === 'assistant' ? 'A' : '나';
   node.querySelector('.bubble-meta').textContent = meta;
   node.querySelector('.bubble-time').textContent = formatMessageTime(options.timestamp || Date.now());
+  const replyPreview = node.querySelector('.bubble-reply-preview');
+  if (replyPreview) {
+    const html = buildReplyPreviewHtml(options.replyToMeta || '이전 메시지', options.replyToText || '');
+    replyPreview.innerHTML = html;
+    replyPreview.classList.toggle('hidden', !html);
+  }
   node.querySelector('.bubble').textContent = text;
   if (options.feedback && hasVisibleFeedback(options.feedback)) {
     populateInlineFeedback(node.querySelector('.bubble-feedback'), options.feedback);
@@ -405,9 +469,9 @@ function scrollChatToBottom() {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-function showTypingIndicator(label = 'ANNA 영어쌤', text = 'ANNA가 답장하는 중') {
+function showTypingIndicator(label = 'ANNA 영어쌤', text = 'ANNA가 답장하는 중', options = {}) {
   removeTypingIndicator();
-  const node = appendMessage('assistant', label, '', { timestamp: Date.now() });
+  const node = appendMessage('assistant', label, '', { ...options, timestamp: Date.now() });
   node.classList.add('typing-indicator');
   node.querySelector('.bubble-meta').textContent = label;
   node.querySelector('.bubble').innerHTML = `<div class="typing-bubble" aria-label="${escapeHtml(text)}"><span></span><span></span><span></span></div>`;
@@ -463,12 +527,42 @@ function hasVisibleFeedback(feedback) {
 
 async function generateTutorReply(userText, options = {}) {
   if (STATE.settings.apiKey) {
-    return realAiReply(userText, options);
+    try {
+      return await realAiReply(userText, options);
+    } catch (error) {
+      const fallback = await maybeFallbackToDemoReply(userText, options, error);
+      if (fallback) return fallback;
+      throw error;
+    }
   }
   if (getProxyBaseUrl()) {
-    return proxyAiReply(userText, options);
+    try {
+      return await proxyAiReply(userText, options);
+    } catch (error) {
+      const fallback = await maybeFallbackToDemoReply(userText, options, error);
+      if (fallback) return fallback;
+      throw error;
+    }
   }
   return demoReply(userText, options);
+}
+
+async function maybeFallbackToDemoReply(userText, options = {}, error) {
+  if (!shouldUseDemoFallback(error)) return null;
+  const fallbackReply = await demoReply(userText, options);
+  if (!STATE.fallbackNoticeShown) {
+    fallbackReply.systemNotice = {
+      text: '실시간 AI 서버가 잠시 불안정해서 지금은 데모 엔진으로 자연스럽게 이어서 답하고 있어요.',
+      tone: 'warning',
+    };
+    STATE.fallbackNoticeShown = true;
+  }
+  return fallbackReply;
+}
+
+function shouldUseDemoFallback(error) {
+  const text = String(error?.message || '').toLowerCase();
+  return ['429', 'quota', 'billing', 'rate limit', 'fetch', 'networkerror', 'failed to fetch', 'timeout'].some((token) => text.includes(token));
 }
 
 function buildHelperPrompt(kind, text) {
@@ -1098,12 +1192,16 @@ async function speakText(text) {
     utterance.onstart = () => {
       STATE.call.assistantSpeaking = true;
       setTutorMood('speaking');
+      updateThreadPresence('ANNA가 지금 말하는 중이에요 · 끝나면 바로 다시 들을게요');
       if (STATE.call.active) updateCallStatus('ANNA 답변 중');
     };
     utterance.onend = () => {
       STATE.call.currentUtterance = null;
       STATE.call.assistantSpeaking = false;
       setTutorMood('idle');
+      updateThreadPresence(STATE.call.active
+        ? 'ANNA가 답장을 마쳤어요 · 이어서 말하면 바로 다시 들어요'
+        : 'ANNA가 온라인이에요 · 답장을 기다리고 있어요');
       if (STATE.call.active) updateCallStatus('화상 회화 중');
       resolve(true);
     };
@@ -1111,6 +1209,9 @@ async function speakText(text) {
       STATE.call.currentUtterance = null;
       STATE.call.assistantSpeaking = false;
       setTutorMood('idle');
+      updateThreadPresence(STATE.call.active
+        ? 'ANNA가 다시 들을 준비를 하고 있어요'
+        : 'ANNA가 온라인이에요 · 답장을 기다리고 있어요');
       if (STATE.call.active) updateCallStatus('화상 회화 중');
       resolve(false);
     };
@@ -1161,12 +1262,16 @@ async function speakWithOpenAITts(text) {
       audio.onplay = () => {
         STATE.call.assistantSpeaking = true;
         setTutorMood('speaking');
+        updateThreadPresence('ANNA가 지금 말하는 중이에요 · 곧 다시 들어요');
         if (STATE.call.active) updateCallStatus('ANNA 답변 중');
       };
       audio.onended = () => {
         STATE.call.assistantSpeaking = false;
         clearOpenAiAudioPlayback();
         setTutorMood('idle');
+        updateThreadPresence(STATE.call.active
+          ? 'ANNA가 답장을 마쳤어요 · 이어서 말하면 바로 다시 들어요'
+          : 'ANNA가 온라인이에요 · 답장을 기다리고 있어요');
         if (STATE.call.active) updateCallStatus('화상 회화 중');
         resolve(true);
       };
@@ -1174,6 +1279,9 @@ async function speakWithOpenAITts(text) {
         STATE.call.assistantSpeaking = false;
         clearOpenAiAudioPlayback();
         setTutorMood('idle');
+        updateThreadPresence(STATE.call.active
+          ? 'ANNA가 다시 들을 준비를 하고 있어요'
+          : 'ANNA가 온라인이에요 · 답장을 기다리고 있어요');
         if (STATE.call.active) updateCallStatus('화상 회화 중');
         resolve(false);
       };
@@ -1218,23 +1326,23 @@ function voiceSupportHint() {
 function startSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    appendAssistant(voiceSupportHint());
+    appendSystemNotice(voiceSupportHint(), 'warning');
     return;
   }
   const recognition = new SpeechRecognition();
   recognition.lang = 'en-GB';
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
-  appendAssistant('🎤 듣고 있어요... 영어로 말해보세요.');
+  appendSystemNotice('🎤 듣는 중… 영어로 말하면 메신저처럼 바로 답장할게요.');
+  updateSelfTranscriptHint('지금 영어로 한 문장 말하면 바로 채팅 스레드에도 남아요.');
   recognition.onresult = async (event) => {
     const transcript = event.results[0][0].transcript.trim();
     messageInput.value = transcript;
-    appendAssistant(`들린 문장: ${transcript}`);
     await handleUserTurn(transcript, { autoSpeak: true, source: 'voice' });
     messageInput.value = '';
   };
   recognition.onerror = (event) => {
-    appendAssistant(`음성 인식 오류: ${event.error}`);
+    appendSystemNotice(`음성 인식 오류: ${event.error}`, 'warning');
   };
   recognition.start();
 }
@@ -1245,26 +1353,35 @@ async function startVideoLesson() {
   STATE.call.heardFinal = false;
   STATE.call.startedAt = Date.now();
   startCallClock();
-  updateCallStatus('화상 회화 중');
+  updateCallStatus('연결 중');
+  updateThreadPresence('ANNA가 통화에 들어오는 중이에요 · 곧 연결됩니다');
   updateAvatarStatus('ANNA가 화상 회화 준비중');
   annaStage.classList.add('call-active');
+  await new Promise((resolve) => setTimeout(resolve, 320));
+  if (!STATE.call.active) return;
+  updateCallStatus('통화 연결됨');
   const opener = isHandsFreeModeEnabled()
-    ? 'Hi — I’m here. Start when you’re ready.'
-    : 'Hi — I’m here. Start with one short sentence.';
+    ? 'Hi — I’m here. Go on when you’re ready.'
+    : 'Hi — I’m here. Give me one short sentence to start.';
   updateAnnaSubtitle(opener);
   if (stageMoodText) {
     stageMoodText.textContent = isHandsFreeModeEnabled()
       ? 'Hands-free call mode is ready. Just keep talking naturally.'
       : 'Camera-call mode is ready. One short sentence is enough.';
   }
-  appendAssistant(
-    isHandsFreeModeEnabled()
-      ? '📞 ANNA가 통화에 들어왔어요. 이제 실제 통화처럼 이어갈게요. 한 번 말하면 바로 답하고, 끝나면 자동으로 다시 들을게요.'
-      : '📞 ANNA가 통화에 들어왔어요. 실제 통화처럼 짧고 자연스럽게 가볼게요. 먼저 한 문장만 말해보세요.'
-  );
-  if (!isHandsFreeModeEnabled()) {
-    speakText(opener);
-  }
+  updateAnnaModeHint(isHandsFreeModeEnabled()
+    ? 'ANNA가 통화에 들어왔어요. 바로 말하면 끊김 없이 이어가요.'
+    : 'ANNA가 통화에 들어왔어요. 먼저 짧게 한 문장만 말해보세요.');
+  updateSelfTranscriptHint('카메라와 마이크가 준비되면 바로 영어로 말해보세요.');
+  appendSystemNotice('📞 ANNA가 통화에 들어왔어요. 이제 실제 전화영어처럼 이어집니다.');
+  appendAssistant(opener, {
+    meta: 'ANNA · live',
+    variant: 'live-assistant',
+    replyToMeta: '통화 시작',
+    replyToText: 'ANNA joined the call',
+  });
+  updateThreadPresence('ANNA가 통화에 들어왔어요 · 먼저 한 문장만 말해보세요');
+  speakText(opener);
 }
 
 async function enableCamera() {
@@ -1281,9 +1398,10 @@ async function enableCamera() {
     userVideo.classList.add('active');
     selfVideoFallback.classList.add('hidden');
     updateAvatarStatus('카메라 연결됨');
-    appendAssistant('📷 카메라 켰어. 이제 ANNA랑 마주 보고 짧게 말해봐.');
+    updateSelfTranscriptHint('카메라 연결 완료. 이제 자연스럽게 한 문장만 먼저 말해보세요.');
+    appendSystemNotice('📷 카메라 연결됨. 이제 바로 말하면 ANNA가 사람처럼 이어서 답해줘요.');
   } catch (err) {
-    appendAssistant(`카메라를 켜지 못했어요: ${err.message}`);
+    appendSystemNotice(`카메라를 켜지 못했어요: ${err.message}`, 'warning');
   }
 }
 
@@ -1314,7 +1432,10 @@ function startCallSpeechRecognition() {
   recognition.maxAlternatives = 1;
   annaStage.classList.add('call-listening');
   updateCallStatus('듣는 중');
+  updateThreadPresence('ANNA가 지금 듣고 있어요 · 영어로 말하면 바로 답장해요');
   updateAnnaSubtitle("I'm listening. Go on.");
+  updateAnnaModeHint('ANNA가 지금 듣고 있어요. 끊지 말고 짧게 말하면 돼요.');
+  updateSelfTranscriptHint('Listening… 영어로 편하게 말해보세요.');
   setAvatar('🎤');
   setTutorMood('listening');
 
@@ -1336,6 +1457,8 @@ function startCallSpeechRecognition() {
     const liveTranscript = (interimTranscript || finalTranscript).trim();
     if (liveTranscript) {
       updateAnnaSubtitle(`You said: ${liveTranscript}`);
+      updateSelfTranscriptHint(`내 말: ${liveTranscript}`);
+      updateThreadPresence(`ANNA가 듣는 중 · “${shortenForReplyPreview(liveTranscript, 38)}”`);
     }
 
     const transcript = finalTranscript.trim();
@@ -1345,6 +1468,8 @@ function startCallSpeechRecognition() {
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
+    updateThreadPresence('ANNA가 방금 음성을 들었어요 · 지금 바로 답장 준비 중');
+    updateAnnaModeHint('좋아요. 바로 답을 만드는 중이에요.');
     setTutorMood('idle');
     messageInput.value = transcript;
     try { recognition.stop(); } catch {}
@@ -1360,12 +1485,14 @@ function startCallSpeechRecognition() {
       ? ` ${voiceSupportHint()}`
       : '';
     updateAnnaSubtitle(`음성 인식 오류: ${event.error}`);
-    appendAssistant(`음성 인식 오류: ${event.error}.${hint}`);
+    updateThreadPresence('마이크 입력이 잠깐 불안정했어요 · 다시 말하면 이어서 들어요');
     setAvatar('😊');
     setTutorMood('idle');
     if (STATE.call.active && event.error === 'no-speech') {
       queueCallListeningResume();
+      return;
     }
+    appendSystemNotice(`음성 인식 오류: ${event.error}.${hint}`, 'warning');
   };
 
   recognition.onend = () => {
@@ -1410,10 +1537,11 @@ function endVideoLesson() {
   selfVideoFallback.classList.remove('hidden');
   annaStage.classList.remove('call-active', 'call-listening');
   updateCallStatus('통화 종료');
+  updateThreadPresence('ANNA가 온라인이에요 · 메시지로도 계속 답장할 수 있어요');
   updateAvatarStatus('AI 튜터 대기중');
   updateAnnaSubtitle('화상 회화를 종료했어요. 다시 시작할 수 있어요.');
   speechSynthesis?.cancel?.();
-  appendAssistant('📴 화상 회화를 종료했어요. 채팅으로 계속 연습하셔도 됩니다.');
+  appendSystemNotice('📴 화상 회화를 종료했어요. 이제 아래 메신저처럼 계속 이어서 연습할 수 있어요.');
 }
 
 function formatCallDuration(totalSeconds = 0) {
@@ -1453,6 +1581,8 @@ function updateCallStatus(text) {
   if (!stageMoodText) return;
   const map = {
     '통화 전': 'Ready for a natural British-English chat.',
+    '연결 중': 'Joining the call now — camera and mic are getting ready.',
+    '통화 연결됨': 'Connected. ANNA is here with you now.',
     '화상 회화 중': 'Stay relaxed — short answers are best.',
     '듣는 중': 'I\'m listening. Go on.',
     'ANNA 답변 중': 'ANNA is replying in a calm British tone.',
@@ -1464,6 +1594,16 @@ function updateCallStatus(text) {
 
 function updateAnnaSubtitle(text) {
   annaSubtitle.textContent = stripForSpeech(text).slice(0, 220);
+}
+
+function updateAnnaModeHint(text) {
+  const node = document.getElementById('annaModeHint');
+  if (node) node.textContent = text;
+}
+
+function updateSelfTranscriptHint(text) {
+  const node = document.getElementById('selfTranscriptHint');
+  if (node) node.textContent = text;
 }
 
 function updateAvatarStatus(text) {
