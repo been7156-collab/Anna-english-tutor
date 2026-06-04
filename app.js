@@ -63,6 +63,8 @@ const STATE = {
     stream: null,
     listening: false,
     recognition: null,
+    noSpeechCount: 0,
+    noSpeechHintShown: false,
     resumeTimer: null,
     startedAt: null,
     clockTimer: null,
@@ -82,6 +84,15 @@ const THEME_OPENERS = {
   church: 'Go on, then — tell me about your church.',
   worship: 'Right — tell me about today\'s worship rehearsal.',
   pastoral: 'How would you describe your ministry in English?'
+};
+
+const LIVE_CALL_OPENERS = {
+  daily: 'Hi — good to see you. How has your day been so far?',
+  cafe: 'Hi — alright, what are you in the mood to order today?',
+  travel: 'Hi — where are you off to, then?',
+  church: 'Hi — tell me a little about your church.',
+  worship: 'Hi — how is worship rehearsal going today?',
+  pastoral: 'Hi — how would you describe your ministry in one short sentence?'
 };
 
 const QUICK_GUIDES = {
@@ -475,6 +486,7 @@ async function onSubmit(e) {
 async function handleUserTurn(text, options = {}) {
   const userMeta = options.source?.includes('voice') ? '나 · 음성' : '나';
   const isVoiceSource = options.source?.includes('voice');
+  const useLiveCallStyling = STATE.call.active;
   appendUser(options.displayText || text, { meta: userMeta, variant: isVoiceSource ? 'voice-user' : '' });
   STATE.call.turnInFlight = Boolean(STATE.call.active && options.source?.includes('voice'));
   updateThreadPresence(isVoiceSource
@@ -487,13 +499,13 @@ async function handleUserTurn(text, options = {}) {
     updateAnnaSubtitle(isUltraFastModeEnabled() ? 'Right — one sec.' : 'Right — give me a second.');
     updateAnnaModeHint('방금 말한 내용을 듣고 바로 답하는 중');
   }
-  const typingLabel = STATE.call.active && options.source?.includes('voice')
+  const typingLabel = useLiveCallStyling
     ? 'ANNA · live'
     : 'ANNA 영어쌤';
   showTypingIndicator(typingLabel, 'ANNA가 답장하는 중', {
     replyToMeta: userMeta,
     replyToText: options.displayText || text,
-    variant: STATE.call.active && options.source?.includes('voice') ? 'live-assistant' : '',
+    variant: useLiveCallStyling ? 'live-assistant' : '',
   });
   try {
     const reply = await generateTutorReply(text, options);
@@ -501,7 +513,7 @@ async function handleUserTurn(text, options = {}) {
     appendAssistant(reply.text, {
       feedback: reply.feedback,
       meta: typingLabel,
-      variant: STATE.call.active && options.source?.includes('voice') ? 'live-assistant' : '',
+      variant: useLiveCallStyling ? 'live-assistant' : '',
       replyToMeta: userMeta,
       replyToText: options.displayText || text,
     });
@@ -557,6 +569,26 @@ function runHelperPrompt(kind) {
 
   messageInput.value = '';
   handleUserTurn(text, { autoSpeak: false, source: kind, helperKind: kind });
+}
+
+function getLiveCallOpener(theme = themeSelect.value) {
+  return LIVE_CALL_OPENERS[theme] || 'Hi — good to see you. How are you doing today?';
+}
+
+function maybeSurfaceCallInputFallback(reason = 'no-speech') {
+  if (!STATE.call.active || STATE.call.noSpeechHintShown) return;
+  if (reason === 'unsupported' || STATE.call.noSpeechCount >= 2) {
+    appendAssistant('음성이 아직 안 잡히면 아래 입력창에 방금 말한 문장을 보내도 돼요. 지금 통화 톤 그대로 바로 답할게요.', {
+      meta: 'ANNA · live',
+      variant: 'live-assistant',
+      replyToMeta: '통화 도움',
+      replyToText: '마이크가 아직 조용해요',
+    });
+    updateThreadPresence('ANNA가 아직 내 목소리를 못 들었어요 · 아래 입력창으로도 바로 이어갈 수 있어요');
+    updateAnnaModeHint('마이크가 잠깐 안 잡혀도 입력창으로 같은 통화 흐름을 계속 이어갈 수 있어요.');
+    if (callLiveFocus) callLiveFocus.textContent = '마이크가 잠잠하면 입력창으로 한 줄만 보내도 바로 이어져요';
+    STATE.call.noSpeechHintShown = true;
+  }
 }
 
 async function startVideoConversation() {
@@ -1601,6 +1633,8 @@ async function startVideoLesson() {
   STATE.call.active = true;
   STATE.call.turnInFlight = false;
   STATE.call.heardFinal = false;
+  STATE.call.noSpeechCount = 0;
+  STATE.call.noSpeechHintShown = false;
   STATE.call.startedAt = Date.now();
   startCallClock();
   updateCallStatus('연결 중');
@@ -1612,9 +1646,7 @@ async function startVideoLesson() {
   await new Promise((resolve) => setTimeout(resolve, 320));
   if (!STATE.call.active) return;
   updateCallStatus('통화 연결됨');
-  const opener = isHandsFreeModeEnabled()
-    ? 'Hi — I’m here. Go on when you’re ready.'
-    : 'Hi — I’m here. Give me one short sentence to start.';
+  const opener = getLiveCallOpener();
   updateAnnaSubtitle(opener);
   if (stageMoodText) {
     stageMoodText.textContent = isHandsFreeModeEnabled()
@@ -1673,7 +1705,14 @@ function startCallSpeechRecognition() {
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    appendAssistant(voiceSupportHint());
+    const unsupportedHint = voiceSupportHint();
+    appendAssistant(unsupportedHint, {
+      meta: 'ANNA · live',
+      variant: 'live-assistant',
+      replyToMeta: '통화 상태',
+      replyToText: '음성 인식을 시작하는 중',
+    });
+    maybeSurfaceCallInputFallback('unsupported');
     return;
   }
 
@@ -1728,6 +1767,8 @@ function startCallSpeechRecognition() {
     if (!transcript) return;
 
     STATE.call.heardFinal = true;
+    STATE.call.noSpeechCount = 0;
+    STATE.call.noSpeechHintShown = false;
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
@@ -1756,6 +1797,8 @@ function startCallSpeechRecognition() {
     setAvatar('😊');
     setTutorMood('idle');
     if (STATE.call.active && event.error === 'no-speech') {
+      STATE.call.noSpeechCount += 1;
+      maybeSurfaceCallInputFallback('no-speech');
       queueCallListeningResume();
       return;
     }
@@ -1803,6 +1846,8 @@ function endVideoLesson() {
   STATE.call.listening = false;
   STATE.call.turnInFlight = false;
   STATE.call.heardFinal = false;
+  STATE.call.noSpeechCount = 0;
+  STATE.call.noSpeechHintShown = false;
   STATE.call.assistantSpeaking = false;
   STATE.call.currentUtterance = null;
   STATE.call.startedAt = null;
