@@ -569,8 +569,17 @@ async function startVideoConversation() {
     await startVideoLesson();
   }
 
+  let cameraResult = { ok: true };
   if (!STATE.call.stream) {
-    await enableCamera();
+    cameraResult = await enableCamera();
+  }
+  const micPermissionState = await getMicrophonePermissionState();
+  if (micPermissionState === 'denied' || cameraResult?.ok === false) {
+    updateThreadPresence('마이크 권한이 필요해요 · 허용 후 다시 누르면 바로 이어집니다');
+    updateCallVibe('권한 확인 필요 · 마이크 접근이 막혀 있어요.', 'Safari/Chrome에서 마이크 권한을 허용한 뒤 다시 누르면 바로 이어서 시작돼요.');
+    if (callLiveFocus) callLiveFocus.textContent = '먼저 마이크 권한을 허용하면 통화가 바로 살아나요';
+    appendSystemNotice(buildSpeechRecognitionErrorMessage('not-allowed'), 'warning');
+    return;
   }
 
   startCallSpeechRecognition();
@@ -1511,10 +1520,59 @@ function voiceSupportHint() {
   return '이 브라우저의 음성 인식 지원이 약할 수 있어요. Safari나 Chrome 최신 버전에서 다시 시도해보세요.';
 }
 
-function startSpeechRecognition() {
+async function getMicrophonePermissionState() {
+  if (!navigator.permissions?.query) return 'unknown';
+  try {
+    const status = await navigator.permissions.query({ name: 'microphone' });
+    return status?.state || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function buildSpeechRecognitionErrorMessage(error) {
+  if (error === 'not-allowed' || error === 'service-not-allowed') {
+    return isEmbeddedMobileBrowser()
+      ? '마이크 권한이 막혀 있어요. 텔레그램 내부 브라우저 대신 Safari/Chrome에서 링크를 열고, 주소창 왼쪽의 마이크 권한을 허용한 뒤 다시 시도해보세요.'
+      : '마이크 권한이 막혀 있어요. 브라우저 주소창의 마이크 권한을 허용하고 새로고침한 뒤 다시 시도해보세요.';
+  }
+  if (error === 'audio-capture') {
+    return '마이크를 찾지 못했어요. 이어폰/에어팟 마이크 연결 상태나 브라우저 마이크 권한을 확인해보세요.';
+  }
+  if (error === 'no-speech') {
+    return '소리가 거의 잡히지 않았어요. 조금 더 가까이에서 한 문장만 또렷하게 말해보세요.';
+  }
+  if (error === 'network') {
+    return '음성 인식 연결이 잠깐 불안정했어요. 네트워크가 안정되면 다시 말해보세요.';
+  }
+  return `음성 인식 오류: ${error}`;
+}
+
+async function ensureMicrophoneAccess() {
+  if (!navigator.mediaDevices?.getUserMedia) return { ok: false, reason: 'unsupported' };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error?.name || error?.message || 'microphone-error', error };
+  }
+}
+
+async function startSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     appendSystemNotice(voiceSupportHint(), 'warning');
+    return;
+  }
+  const permissionState = await getMicrophonePermissionState();
+  if (permissionState === 'denied') {
+    appendSystemNotice(buildSpeechRecognitionErrorMessage('not-allowed'), 'warning');
+    return;
+  }
+  const micAccess = await ensureMicrophoneAccess();
+  if (!micAccess.ok && permissionState !== 'granted') {
+    appendSystemNotice(buildSpeechRecognitionErrorMessage('not-allowed'), 'warning');
     return;
   }
   const recognition = new SpeechRecognition();
@@ -1530,9 +1588,13 @@ function startSpeechRecognition() {
     messageInput.value = '';
   };
   recognition.onerror = (event) => {
-    appendSystemNotice(`음성 인식 오류: ${event.error}`, 'warning');
+    appendSystemNotice(buildSpeechRecognitionErrorMessage(event.error), 'warning');
   };
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (error) {
+    appendSystemNotice(buildSpeechRecognitionErrorMessage(error?.name || 'start-failed'), 'warning');
+  }
 }
 
 async function startVideoLesson() {
@@ -1581,7 +1643,7 @@ async function startVideoLesson() {
 async function enableCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
     appendAssistant('이 브라우저에서는 카메라 접근을 지원하지 않아요.');
-    return;
+    return { ok: false, reason: 'unsupported' };
   }
 
   try {
@@ -1594,8 +1656,13 @@ async function enableCamera() {
     updateAvatarStatus('카메라 연결됨');
     updateSelfTranscriptHint('카메라 연결 완료. 이제 자연스럽게 한 문장만 먼저 말해보세요.');
     appendSystemNotice('📷 카메라 연결됨. 이제 바로 말하면 ANNA가 사람처럼 이어서 답해줘요.');
+    return { ok: true };
   } catch (err) {
-    appendSystemNotice(`카메라를 켜지 못했어요: ${err.message}`, 'warning');
+    const permissionHint = /denied|notallowed|not-allowed|permission/i.test(String(err?.name || err?.message || ''))
+      ? ` ${buildSpeechRecognitionErrorMessage('not-allowed')}`
+      : '';
+    appendSystemNotice(`카메라를 켜지 못했어요: ${err.message}.${permissionHint}`.trim(), 'warning');
+    return { ok: false, reason: err?.name || err?.message || 'camera-error', error: err };
   }
 }
 
@@ -1679,18 +1746,20 @@ function startCallSpeechRecognition() {
     STATE.call.listening = false;
     annaStage.classList.remove('call-listening');
     updateCallStatus('화상 회화 중');
-    const hint = ['not-allowed', 'service-not-allowed'].includes(event.error)
-      ? ` ${voiceSupportHint()}`
-      : '';
-    updateAnnaSubtitle(`음성 인식 오류: ${event.error}`);
+    const message = buildSpeechRecognitionErrorMessage(event.error);
+    updateAnnaSubtitle(message);
     updateThreadPresence('마이크 입력이 잠깐 불안정했어요 · 다시 말하면 이어서 들어요');
+    if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
+      updateCallVibe('권한 확인 필요 · 마이크 접근이 막혀 있어요.', 'Safari/Chrome에서 마이크 권한을 허용한 뒤 다시 누르면 통화가 바로 이어져요.');
+      if (callLiveFocus) callLiveFocus.textContent = '마이크 권한을 허용하면 바로 다시 시작할 수 있어요';
+    }
     setAvatar('😊');
     setTutorMood('idle');
     if (STATE.call.active && event.error === 'no-speech') {
       queueCallListeningResume();
       return;
     }
-    appendSystemNotice(`음성 인식 오류: ${event.error}.${hint}`, 'warning');
+    appendSystemNotice(message, 'warning');
   };
 
   recognition.onend = () => {
@@ -1704,7 +1773,16 @@ function startCallSpeechRecognition() {
     }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (error) {
+    STATE.call.listening = false;
+    annaStage.classList.remove('call-listening');
+    updateCallStatus('화상 회화 중');
+    const message = buildSpeechRecognitionErrorMessage(error?.name || 'start-failed');
+    updateAnnaSubtitle(message);
+    appendSystemNotice(message, 'warning');
+  }
 }
 
 function endVideoLesson() {
